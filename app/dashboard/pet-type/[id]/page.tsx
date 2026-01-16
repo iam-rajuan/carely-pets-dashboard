@@ -1,18 +1,47 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
-// Props if fetching from backend later
-interface EditPetTypeProps {
-  initialValue?: string;
-}
+import { fetchPetTypes, updatePetType } from "../../../store/petSlice";
+import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 
-export default function EditPetType({
-  initialValue = "Dog",
-}: EditPetTypeProps) {
+export default function EditPetType() {
   const router = useRouter();
-  const [type, setType] = useState(initialValue);
+  const params = useParams();
+  const petTypeId = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const dispatch = useAppDispatch();
+  const { petTypes, status, updateStatus, updateError } = useAppSelector(
+    (state) => state.pet
+  );
+  const currentPetType = petTypes.find((petType) => petType.id === petTypeId);
+  const [type, setType] = useState("");
+
+  useEffect(() => {
+    if (!petTypes.length && status === "idle") {
+      dispatch(fetchPetTypes());
+    }
+  }, [dispatch, petTypes.length, status]);
+
+  useEffect(() => {
+    if (currentPetType && !type) {
+      setType(currentPetType.name);
+    }
+  }, [currentPetType, type]);
+
+  const handleSave = async () => {
+    const trimmedType = type.trim();
+    if (!trimmedType || !petTypeId) {
+      return;
+    }
+
+    try {
+      await dispatch(updatePetType({ id: petTypeId, name: trimmedType })).unwrap();
+      router.back();
+    } catch {
+      // Error handled in slice state.
+    }
+  };
 
   return (
     <div className="p-6 max-w-4xl">
@@ -45,12 +74,18 @@ export default function EditPetType({
         </button>
 
         <button
-          onClick={() => console.log("Updated value:", type)}
-          className="px-6 py-2 rounded-xl bg-[#9BE3F4] hover:bg-[#8ad9ec] text-gray-900 font-medium shadow-sm"
+          onClick={handleSave}
+          className="px-6 py-2 rounded-xl bg-[#9BE3F4] hover:bg-[#8ad9ec] text-gray-900 font-medium shadow-sm disabled:cursor-not-allowed disabled:opacity-70"
+          disabled={updateStatus === "loading"}
         >
-          Save
+          {updateStatus === "loading" ? "Saving..." : "Save"}
         </button>
       </div>
+      {updateError ? (
+        <p className="mt-3 text-xs text-red-500" role="alert">
+          {updateError}
+        </p>
+      ) : null}
     </div>
   );
 }

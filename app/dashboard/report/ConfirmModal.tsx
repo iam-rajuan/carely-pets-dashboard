@@ -8,6 +8,7 @@ interface ConfirmModalProps {
   onConfirm: () => void;
   title?: string;
   description?: string;
+  loading?: boolean;
 }
 
 export default function ConfirmModal({
@@ -16,6 +17,7 @@ export default function ConfirmModal({
   onConfirm,
   title = "Are you sure you want to delete?",
   description = "By deleting this record, you won’t be able to see it again. If you still want to continue press “Delete”.",
+  loading = false,
 }: ConfirmModalProps) {
   if (!open) return null;
 
@@ -38,15 +40,17 @@ export default function ConfirmModal({
           <button
             onClick={onClose}
             className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 font-medium"
+            disabled={loading}
           >
             Cancel
           </button>
 
           <button
             onClick={onConfirm}
-            className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+            className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={loading}
           >
-            Delete
+            {loading ? "Deleting..." : "Delete"}
           </button>
         </div>
       </div>

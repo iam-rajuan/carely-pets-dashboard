@@ -1,18 +1,18 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 
-type AuthUser = {
+export type AuthUser = {
   id: string;
   name: string;
   email: string;
   role: string;
 };
 
-type AuthTokens = {
+export type AuthTokens = {
   accessToken: string;
   refreshToken: string;
 };
 
-type AuthState = {
+export type AuthState = {
   user: AuthUser | null;
   tokens: AuthTokens | null;
   status: "idle" | "loading" | "succeeded" | "failed";
@@ -24,7 +24,7 @@ type LoginPayload = {
   password: string;
 };
 
-const initialState: AuthState = {
+export const initialAuthState: AuthState = {
   user: null,
   tokens: null,
   status: "idle",
@@ -70,18 +70,26 @@ export const login = createAsyncThunk<
     return rejectWithValue("Invalid login response.");
   }
 
+  if (typeof window !== "undefined") {
+    const authSnapshot = JSON.stringify({ user, tokens });
+    window.localStorage.setItem("auth", authSnapshot);
+  }
+
   return { user, tokens };
 });
 
 const authSlice = createSlice({
   name: "auth",
-  initialState,
+  initialState: initialAuthState,
   reducers: {
     logout(state) {
       state.user = null;
       state.tokens = null;
       state.status = "idle";
       state.error = null;
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("auth");
+      }
     },
     setAuthState(
       state,

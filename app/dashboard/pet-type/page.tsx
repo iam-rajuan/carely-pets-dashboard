@@ -1,23 +1,51 @@
 "use client";
 
-import { useState } from "react";
-import { MoreHorizontal, Plus, ChevronDown } from "lucide-react";
+import { useEffect, useState } from "react";
+import { MoreHorizontal, Plus } from "lucide-react";
 import ConfirmModal from "../report/ConfirmModal";
 import { useRouter } from "next/navigation";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
+import { deletePetType, fetchPetTypes } from "../../store/petSlice";
 
 export default function PetTypePage() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
+  const { petTypes, status, error, deleteStatus } = useAppSelector(
+    (state) => state.pet
+  );
 
-  const [menuOpen, setMenuOpen] = useState<number | null>(null);
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const petTypes = [
-    { id: 1, name: "Dog" },
-    { id: 2, name: "Cat" },
-    { id: 3, name: "Bird" },
-    { id: 4, name: "Exotic Pet" },
-    { id: 5, name: "Small Pet" },
-  ];
+  useEffect(() => {
+    dispatch(fetchPetTypes());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) {
+        return;
+      }
+
+      const isInsideMenu = target.closest(
+        `[data-menu-root="${menuOpen}"]`
+      );
+      if (!isInsideMenu) {
+        setMenuOpen(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [menuOpen]);
 
   return (
     <div className="p-6">
@@ -51,16 +79,33 @@ export default function PetTypePage() {
           </thead>
 
           <tbody className="text-gray-800">
+            {status === "loading" ? (
+              <tr>
+                <td className="py-4 px-6" colSpan={3}>
+                  Loading pet types...
+                </td>
+              </tr>
+            ) : null}
+            {status === "failed" && error ? (
+              <tr>
+                <td className="py-4 px-6 text-red-600" colSpan={3}>
+                  {error}
+                </td>
+              </tr>
+            ) : null}
             {petTypes.map((p, index) => (
               <tr
-                key={p.id}
+                key={`${p.id ?? "pet"}-${p.slug ?? index}`}
                 className="border-t border-gray-300 hover:bg-gray-50 transition"
               >
                 <td className="py-4 px-6">{index + 1}</td>
                 <td className="py-4 px-6">{p.name}</td>
 
                 {/* ACTION MENU */}
-                <td className="py-4 px-6 text-right relative">
+                <td
+                  className="py-4 px-6 text-right border-0 relative"
+                  data-menu-root={p.id}
+                >
                   <button
                     onClick={() => setMenuOpen(menuOpen === p.id ? null : p.id)}
                     className="p-2 rounded-lg hover:bg-gray-100"
@@ -81,7 +126,11 @@ export default function PetTypePage() {
 
                       <button
                         className="w-full px-4 py-2 text-left hover:bg-gray-100 text-red-600"
-                        onClick={() => setDeleteOpen(true)}
+                        onClick={() => {
+                          setMenuOpen(null);
+                          setDeleteId(p.id);
+                          setDeleteOpen(true);
+                        }}
                       >
                         Delete
                       </button>
@@ -98,7 +147,16 @@ export default function PetTypePage() {
       <ConfirmModal
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        onConfirm={() => {}}
+        onConfirm={async () => {
+          if (!deleteId) {
+            return;
+          }
+
+          await dispatch(deletePetType({ id: deleteId }));
+          setDeleteOpen(false);
+          setDeleteId(null);
+        }}
+        loading={deleteStatus === "loading"}
       />
     </div>
   );

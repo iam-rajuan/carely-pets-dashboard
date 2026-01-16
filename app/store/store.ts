@@ -1,12 +1,50 @@
-import { configureStore } from "@reduxjs/toolkit";
+import { combineReducers, configureStore } from "@reduxjs/toolkit";
+import type { PreloadedState } from "@reduxjs/toolkit";
 
-import authReducer from "./authSlice";
+import authReducer, { type AuthState, initialAuthState } from "./authSlice";
+import petReducer from "./petSlice";
 
-export const store = configureStore({
-  reducer: {
-    auth: authReducer,
-  },
+const rootReducer = combineReducers({
+  auth: authReducer,
+  pet: petReducer,
 });
 
-export type RootState = ReturnType<typeof store.getState>;
+export type RootState = ReturnType<typeof rootReducer>;
+
+const loadAuthFromStorage = (): AuthState | undefined => {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  const savedAuth = window.localStorage.getItem("auth");
+  if (!savedAuth) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(savedAuth);
+    if (parsed?.user && parsed?.tokens) {
+      return {
+        ...initialAuthState,
+        user: parsed.user,
+        tokens: parsed.tokens,
+      };
+    }
+  } catch {
+    // Ignore invalid storage contents.
+  }
+
+  return undefined;
+};
+
+const preloadedAuth = loadAuthFromStorage();
+const preloadedState: PreloadedState<RootState> | undefined = preloadedAuth
+  ? { auth: preloadedAuth }
+  : undefined;
+
+export const store = configureStore({
+  reducer: rootReducer,
+  preloadedState,
+});
+
 export type AppDispatch = typeof store.dispatch;
