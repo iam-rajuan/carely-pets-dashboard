@@ -15,7 +15,8 @@ export default function EditPetType() {
     (state) => state.pet
   );
   const currentPetType = petTypes.find((petType) => petType.id === petTypeId);
-  const [type, setType] = useState("");
+  const [draftType, setDraftType] = useState<string | null>(null);
+  const typeValue = draftType ?? currentPetType?.name ?? "";
 
   useEffect(() => {
     if (!petTypes.length && status === "idle") {
@@ -23,14 +24,8 @@ export default function EditPetType() {
     }
   }, [dispatch, petTypes.length, status]);
 
-  useEffect(() => {
-    if (currentPetType && !type) {
-      setType(currentPetType.name);
-    }
-  }, [currentPetType, type]);
-
   const handleSave = async () => {
-    const trimmedType = type.trim();
+    const trimmedType = typeValue.trim();
     if (!trimmedType || !petTypeId) {
       return;
     }
@@ -56,8 +51,8 @@ export default function EditPetType() {
 
         <input
           type="text"
-          value={type}
-          onChange={(e) => setType(e.target.value)}
+          value={typeValue}
+          onChange={(e) => setDraftType(e.target.value)}
           placeholder="Enter pet type"
           className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 placeholder:text-gray-400
             focus:outline-none focus:ring-2 focus:ring-[#9BE3F4]"

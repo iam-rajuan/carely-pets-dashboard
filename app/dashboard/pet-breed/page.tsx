@@ -72,10 +72,10 @@ export default function PetBreedPage() {
                   </button>
 
                   {openMenu === item.id && (
-                    <div className="absolute right-5 top-10 bg-white border shadow-lg rounded-lg w-32 z-20">
+                    <div className="absolute right-5 top-10 bg-white border border-gray-50 shadow-lg rounded-lg w-32 z-20">
                       <Link
                         href={`/dashboard/pet-breed/${item.id}`}
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        className="block px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                       >
                         Edit
                       </Link>

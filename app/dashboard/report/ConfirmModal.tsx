@@ -1,24 +1,25 @@
 "use client";
 
+import React from "react";
 import { AlertCircle } from "lucide-react";
 
-interface ConfirmModalProps {
+export type ConfirmModalProps = {
   open: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   title?: string;
   description?: string;
   loading?: boolean;
-}
+};
 
-export default function ConfirmModal({
+function ConfirmModal({
   open,
   onClose,
   onConfirm,
   title = "Are you sure you want to delete?",
-  description = "By deleting this record, you won’t be able to see it again. If you still want to continue press “Delete”.",
+  description = "By deleting this record, you won't be able to see it again. If you still want to continue press \"Delete\".",
   loading = false,
-}: ConfirmModalProps) {
+}: ConfirmModalProps): JSX.Element | null {
   if (!open) return null;
 
   return (
@@ -57,3 +58,5 @@ export default function ConfirmModal({
     </div>
   );
 }
+
+export default ConfirmModal;
