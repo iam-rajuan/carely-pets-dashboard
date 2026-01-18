@@ -17,19 +17,22 @@ export default function SettingsPage() {
   const [originalTaxPercent, setOriginalTaxPercent] = useState<number | null>(
     null
   );
+  const [servicesStatus, setServicesStatus] = useState<
+    "idle" | "loading" | "succeeded" | "failed"
+  >("idle");
+  const [servicesError, setServicesError] = useState<string | null>(null);
   const [services, setServices] = useState({
-    vet: "$250.00",
-    walking: "$250.00",
-    grooming: "$250.00",
-    training: "$250.00",
+    vet: "",
+    walking: "",
+    grooming: "",
+    training: "",
   });
-
-  const originalServices = {
-    vet: "$250.00",
-    walking: "$250.00",
-    grooming: "$250.00",
-    training: "$250.00",
-  };
+  const [originalServices, setOriginalServices] = useState({
+    vet: "",
+    walking: "",
+    grooming: "",
+    training: "",
+  });
 
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   const normalizedBaseUrl = baseUrl ? baseUrl.replace(/\/+$/, "") : "";
@@ -92,6 +95,96 @@ export default function SettingsPage() {
       void fetchTaxSettings();
     }
   }, [fetchTaxSettings, taxStatus]);
+
+  const formatPrice = (value: number) => `$${value.toFixed(2)}`;
+
+  const fetchServices = useCallback(async () => {
+    if (!normalizedBaseUrl) {
+      setServicesStatus("failed");
+      setServicesError("NEXT_PUBLIC_API_BASE_URL is not set.");
+      return;
+    }
+
+    if (!accessToken) {
+      setServicesStatus("failed");
+      setServicesError("Missing access token.");
+      return;
+    }
+
+    setServicesStatus("loading");
+    setServicesError(null);
+
+    try {
+      const response = await fetch(
+        `${normalizedBaseUrl}/admin/settings/services`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        let message = "Failed to fetch service charges.";
+        try {
+          const errorBody = await response.json();
+          message = errorBody?.message ?? message;
+        } catch {
+          // Keep fallback message.
+        }
+        throw new Error(message);
+      }
+
+      const data = await response.json();
+      const list = Array.isArray(data?.data) ? data.data : null;
+      if (!list) {
+        throw new Error("Invalid services response.");
+      }
+
+      const nextServices = {
+        vet: "",
+        walking: "",
+        grooming: "",
+        training: "",
+      };
+
+      list.forEach(
+        (service: { type?: string; price?: number; isActive?: boolean }) => {
+          if (
+            !service ||
+            typeof service.type !== "string" ||
+            typeof service.price !== "number"
+          ) {
+            return;
+          }
+
+          const key = service.type.toLowerCase();
+          if (key in nextServices) {
+            nextServices[key as keyof typeof nextServices] = formatPrice(
+              service.price
+            );
+          }
+        }
+      );
+
+      setServices(nextServices);
+      setOriginalServices(nextServices);
+      setServicesStatus("succeeded");
+    } catch (err) {
+      setServicesStatus("failed");
+      setServicesError(
+        err instanceof Error ? err.message : "Failed to fetch service charges."
+      );
+    }
+  }, [accessToken, normalizedBaseUrl]);
+
+  useEffect(() => {
+    if (servicesStatus === "idle") {
+      void fetchServices();
+    }
+  }, [fetchServices, servicesStatus]);
 
   const saveTax = async () => {
     if (!normalizedBaseUrl) {
@@ -156,10 +249,134 @@ export default function SettingsPage() {
     setTaxError(null);
   };
 
-  const saveServices = () => setIsEditingServices(false);
+  const parsePrice = (value: string) => {
+    const normalized = value.replace(/[^0-9.]/g, "");
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const saveServices = async () => {
+    if (!normalizedBaseUrl) {
+      setServicesError("NEXT_PUBLIC_API_BASE_URL is not set.");
+      return;
+    }
+
+    if (!accessToken) {
+      setServicesError("Missing access token.");
+      return;
+    }
+
+    const vetPrice = parsePrice(services.vet);
+    const walkingPrice = parsePrice(services.walking);
+    const groomingPrice = parsePrice(services.grooming);
+    const trainingPrice = parsePrice(services.training);
+
+    if (
+      vetPrice === null ||
+      walkingPrice === null ||
+      groomingPrice === null ||
+      trainingPrice === null
+    ) {
+      setServicesError("Please enter valid prices for all services.");
+      return;
+    }
+
+    setServicesStatus("loading");
+    setServicesError(null);
+
+    try {
+      const response = await fetch(
+        `${normalizedBaseUrl}/admin/settings/services`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            services: [
+              { name: "VET", type: "vet", price: vetPrice, isActive: true },
+              {
+                name: "WALKING",
+                type: "walking",
+                price: walkingPrice,
+                isActive: true,
+              },
+              {
+                name: "GROOMING",
+                type: "grooming",
+                price: groomingPrice,
+                isActive: true,
+              },
+              {
+                name: "TRAINING",
+                type: "training",
+                price: trainingPrice,
+                isActive: true,
+              },
+            ],
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        let message = "Failed to update service charges.";
+        try {
+          const errorBody = await response.json();
+          message = errorBody?.message ?? message;
+        } catch {
+          // Keep fallback message.
+        }
+        throw new Error(message);
+      }
+
+      const data = await response.json();
+      const list = Array.isArray(data?.data) ? data.data : null;
+      if (!list) {
+        throw new Error("Invalid services response.");
+      }
+
+      const nextServices = {
+        vet: "",
+        walking: "",
+        grooming: "",
+        training: "",
+      };
+
+      list.forEach(
+        (service: { type?: string; price?: number; isActive?: boolean }) => {
+          if (
+            !service ||
+            typeof service.type !== "string" ||
+            typeof service.price !== "number"
+          ) {
+            return;
+          }
+
+          const key = service.type.toLowerCase();
+          if (key in nextServices) {
+            nextServices[key as keyof typeof nextServices] = formatPrice(
+              service.price
+            );
+          }
+        }
+      );
+
+      setServices(nextServices);
+      setOriginalServices(nextServices);
+      setServicesStatus("succeeded");
+      setIsEditingServices(false);
+    } catch (err) {
+      setServicesStatus("failed");
+      setServicesError(
+        err instanceof Error ? err.message : "Failed to update service charges."
+      );
+    }
+  };
   const cancelServices = () => {
     setServices(originalServices);
     setIsEditingServices(false);
+    setServicesError(null);
   };
 
   return (
@@ -264,6 +481,17 @@ export default function SettingsPage() {
         </div>
 
         {/* SERVICE GRID */}
+        <div className="mt-6">
+          {servicesStatus === "loading" && (
+            <p className="text-sm text-gray-600">Loading service charges...</p>
+          )}
+          {servicesStatus === "failed" && (
+            <p className="text-sm text-red-600">
+              {servicesError ?? "Failed to load service charges."}
+            </p>
+          )}
+        </div>
+
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* LEFT COLUMN */}
           <div>
