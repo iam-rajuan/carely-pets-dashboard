@@ -14,6 +14,7 @@ export function GenderRow({ value = "male", name = "gender" }: GenderRowProps) {
             name={name}
             className="h-4 w-4"
             defaultChecked={value === "male"}
+            value="male"
           />
           Male
         </label>
@@ -24,6 +25,7 @@ export function GenderRow({ value = "male", name = "gender" }: GenderRowProps) {
             name={name}
             className="h-4 w-4"
             defaultChecked={value === "female"}
+            value="female"
           />
           Female
         </label>

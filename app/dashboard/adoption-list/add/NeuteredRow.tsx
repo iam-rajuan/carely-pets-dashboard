@@ -17,6 +17,7 @@ export function NeuteredRow({
             name={name}
             className="h-4 w-4"
             defaultChecked={value === "yes"}
+            value="true"
           />
           Yes
         </label>
@@ -27,6 +28,7 @@ export function NeuteredRow({
             name={name}
             className="h-4 w-4"
             defaultChecked={value === "no"}
+            value="false"
           />
           No
         </label>

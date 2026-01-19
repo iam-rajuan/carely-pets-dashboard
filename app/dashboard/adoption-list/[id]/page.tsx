@@ -134,18 +134,19 @@ export default function EditPetForAdoption() {
       </div>
 
       {/* ------------------- PET INFORMATION ------------------- */}
-      <div
-        className="bg-white border rounded-2xl p-5 shadow-sm cursor-pointer"
-        onClick={() => setPetInfoOpen(!petInfoOpen)}
-      >
-        <div className="flex justify-between items-center">
+      <div className="bg-white border rounded-2xl p-5 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setPetInfoOpen(!petInfoOpen)}
+          className="flex w-full justify-between items-center cursor-pointer"
+        >
           <p className="font-semibold text-gray-900">Pet Information</p>
           <ChevronDown
             className={`h-5 w-5 transition-transform ${
               petInfoOpen ? "rotate-180" : ""
             }`}
           />
-        </div>
+        </button>
 
         {petInfoOpen && (
           <div className="mt-6 space-y-6 animate-fadeIn">
@@ -215,18 +216,19 @@ export default function EditPetForAdoption() {
       </div>
 
       {/* ------------------- SHELTER INFORMATION ------------------- */}
-      <div
-        className="bg-white border rounded-2xl p-5 shadow-sm cursor-pointer"
-        onClick={() => setShelterInfoOpen(!shelterInfoOpen)}
-      >
-        <div className="flex justify-between items-center">
+      <div className="bg-white border rounded-2xl p-5 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setShelterInfoOpen(!shelterInfoOpen)}
+          className="flex w-full justify-between items-center cursor-pointer"
+        >
           <p className="font-semibold text-gray-900">Shelter Information</p>
           <ChevronDown
             className={`h-5 w-5 transition-transform ${
               shelterInfoOpen ? "rotate-180" : ""
             }`}
           />
-        </div>
+        </button>
 
         {shelterInfoOpen && (
           <div className="mt-6 space-y-6 animate-fadeIn">

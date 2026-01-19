@@ -1,52 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Eye, Download, ChevronLeft, ChevronRight } from "lucide-react";
-import { useParams } from "next/navigation";
+
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
+import { fetchUsers } from "../../store/usersSlice";
 
 export default function PetPalPage() {
   const [page, setPage] = useState(1);
-
-  const data = [
-    {
-      id: 1,
-      name: "Jane Cooper",
-      username: "@username",
-      email: "exaple@gmail.com",
-      status: "Active",
-    },
-    {
-      id: 2,
-      name: "Jenny Wilson",
-      username: "@username",
-      email: "exaple@gmail.com",
-      status: "Deletion Request",
-    },
-    {
-      id: 3,
-      name: "Wade Warren",
-      username: "@username",
-      email: "exaple@gmail.com",
-      status: "Active",
-    },
-    {
-      id: 4,
-      name: "Floyd Miles",
-      username: "@username",
-      email: "exaple@gmail.com",
-      status: "Active",
-    },
-    {
-      id: 5,
-      name: "Guy Hawkins",
-      username: "@username",
-      email: "exaple@gmail.com",
-      status: "Deletion Request",
-    },
-  ];
+  const pageSize = 10;
 
   const router = useRouter();
+  const dispatch = useAppDispatch();
+  const users = useAppSelector((state) => state.users.users);
+  const status = useAppSelector((state) => state.users.status);
+  const error = useAppSelector((state) => state.users.error);
+
+  const totalPages = Math.max(1, Math.ceil(users.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+
+  useEffect(() => {
+    dispatch(fetchUsers({ page: currentPage, limit: pageSize }));
+  }, [dispatch, currentPage, pageSize]);
+
+  const pagedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    return users.slice(start, end);
+  }, [users, currentPage, pageSize]);
+
+  const pageNumbers = useMemo(
+    () => Array.from({ length: totalPages }, (_, index) => index + 1),
+    [totalPages]
+  );
 
   return (
     <div className="space-y-8 w-full">
@@ -104,66 +91,111 @@ export default function PetPalPage() {
           </thead>
 
           <tbody>
-            {data.map((item, index) => (
-              <tr key={item.id} className="border-t">
-                <td className="py-4 px-5 text-gray-700">{index + 1}</td>
-
-                <td className="py-4 px-5 text-gray-900">{item.name}</td>
-
-                <td className="py-4 px-5 text-gray-600">{item.username}</td>
-
-                <td className="py-4 px-5 text-gray-600">{item.email}</td>
-
-                <td className="py-4 px-5">
-                  {item.status === "Active" ? (
-                    <span className="px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full flex items-center gap-1 w-fit">
-                      Active{" "}
-                      <span className="h-2 w-2 bg-green-500 rounded-full"></span>
-                    </span>
-                  ) : (
-                    <span className="px-3 py-1 bg-red-100 text-red-700 text-xs rounded-full flex items-center gap-1 w-fit">
-                      Deletion Request{" "}
-                      <span className="h-2 w-2 bg-red-500 rounded-full"></span>
-                    </span>
-                  )}
-                </td>
-
-                <td className="py-4 px-5">
-                  <button
-                    onClick={() =>
-                      router.push(`/dashboard/pal-management/${item.id}`)
-                    }
-                    className="p-2 bg-[#D6F2F8] hover:bg-[#c9edf5] rounded-xl"
-                  >
-                    <Eye className="h-5 w-5 text-gray-700" />
-                  </button>
+            {status === "loading" ? (
+              <tr className="border-t">
+                <td
+                  colSpan={6}
+                  className="py-6 px-5 text-center text-gray-600"
+                >
+                  Loading users...
                 </td>
               </tr>
-            ))}
+            ) : status === "failed" ? (
+              <tr className="border-t">
+                <td
+                  colSpan={6}
+                  className="py-6 px-5 text-center text-red-600"
+                >
+                  {error ?? "Failed to load users."}
+                </td>
+              </tr>
+            ) : pagedUsers.length === 0 ? (
+              <tr className="border-t">
+                <td
+                  colSpan={6}
+                  className="py-6 px-5 text-center text-gray-600"
+                >
+                  No users found.
+                </td>
+              </tr>
+            ) : (
+              pagedUsers.map((item, index) => (
+                <tr key={item.id} className="border-t">
+                  <td className="py-4 px-5 text-gray-700">
+                    {(currentPage - 1) * pageSize + index + 1}
+                  </td>
+
+                  <td className="py-4 px-5 text-gray-900">{item.name}</td>
+
+                  <td className="py-4 px-5 text-gray-600">{item.username}</td>
+
+                  <td className="py-4 px-5 text-gray-600">{item.email}</td>
+
+                  <td className="py-4 px-5">
+                    {item.status === "active" && !item.deletionRequestedAt ? (
+                      <span className="px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full flex items-center gap-1 w-fit">
+                        Active{" "}
+                        <span className="h-2 w-2 bg-green-500 rounded-full"></span>
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 bg-red-100 text-red-700 text-xs rounded-full flex items-center gap-1 w-fit">
+                        Deletion Request{" "}
+                        <span className="h-2 w-2 bg-red-500 rounded-full"></span>
+                      </span>
+                    )}
+                  </td>
+
+                  <td className="py-4 px-5">
+                    <button
+                      onClick={() =>
+                        router.push(`/dashboard/pal-management/${item.id}`)
+                      }
+                      className="p-2 bg-[#D6F2F8] hover:bg-[#c9edf5] rounded-xl"
+                    >
+                      <Eye className="h-5 w-5 text-gray-700" />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
 
       {/* FOOTER SUMMARY */}
       <p className="text-sm text-gray-600">
-        No of Results {data.length} out of 100
+        No of Results {users.length} out of {users.length}
       </p>
 
       {/* PAGINATION */}
       <div className="flex items-center gap-2">
-        <button className="p-2 border rounded-lg hover:bg-gray-50">
+        <button
+          className="p-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+          disabled={currentPage === 1}
+        >
           <ChevronLeft className="h-4 w-4 text-gray-700" />
         </button>
 
-        <button className="px-4 py-2 border rounded-lg bg-black text-white">
-          1
-        </button>
+        {pageNumbers.map((number) => (
+          <button
+            key={number}
+            className={`px-4 py-2 border rounded-lg ${
+              number === currentPage
+                ? "bg-black text-white"
+                : "text-gray-700 hover:bg-gray-50"
+            }`}
+            onClick={() => setPage(number)}
+          >
+            {number}
+          </button>
+        ))}
 
-        <button className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50">
-          2
-        </button>
-
-        <button className="p-2 border rounded-lg hover:bg-gray-50">
+        <button
+          className="p-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+          disabled={currentPage === totalPages}
+        >
           <ChevronRight className="h-4 w-4 text-gray-700" />
         </button>
       </div>

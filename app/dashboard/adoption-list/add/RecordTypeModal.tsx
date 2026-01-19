@@ -1,14 +1,16 @@
 "use client";
 
 import { X } from "lucide-react";
-import HealthRecordFormModal from "./HealthRecordFormModal";
+import HealthRecordFormModal, {
+  HealthRecordFormValues,
+} from "./HealthRecordFormModal";
 import { useState } from "react";
 
 const types = [
   { label: "Vaccination", color: "bg-green-50", icon: "💉" },
   { label: "Check-up", color: "bg-blue-50", icon: "🩺" },
   { label: "Medication", color: "bg-red-50", icon: "💊" },
-  { label: "Tick", color: "bg-purple-50", icon: "🪳" },
+  { label: "Tick & Flea", color: "bg-purple-50", icon: "🪳" },
   { label: "Surgery", color: "bg-pink-50", icon: "🐾" },
   { label: "Dental", color: "bg-orange-50", icon: "🦷" },
   { label: "Other", color: "bg-gray-100", icon: "📄" },
@@ -17,11 +19,13 @@ const types = [
 interface RecordTypeModalProps {
   open: boolean;
   onClose: () => void;
+  onSave: (record: HealthRecordFormValues) => void;
 }
 
 export default function RecordTypeModal({
   open,
   onClose,
+  onSave,
 }: RecordTypeModalProps) {
   const [openForm, setOpenForm] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -62,6 +66,7 @@ export default function RecordTypeModal({
           open={openForm}
           onClose={() => setOpenForm(false)}
           type={selected!}
+          onSave={onSave}
         />
       )}
     </>

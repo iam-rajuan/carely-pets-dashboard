@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Bug,
   ChevronRight,
@@ -11,6 +11,7 @@ import {
   Syringe,
 } from "lucide-react";
 import RecordTypeModal from "./RecordTypeModal";
+import { HealthRecordFormValues } from "./HealthRecordFormModal";
 
 const recordTypes = [
   {
@@ -68,14 +69,30 @@ interface HealthRecordsSectionProps {
   title?: string;
   description?: string;
   actionLabel?: string;
+  records?: HealthRecordFormValues[];
+  onAddRecord?: (record: HealthRecordFormValues) => void;
 }
 
 export default function HealthRecordsSection({
   title = "Add Health Records",
   description = `Click on "Add Health Record" and select which record you want to put. You can skip this section if you have no data or idea.`,
   actionLabel = "Add Health Record",
+  records = [],
+  onAddRecord,
 }: HealthRecordsSectionProps) {
   const [openTypeModal, setOpenTypeModal] = useState(false);
+  const recordCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    records.forEach((record) => {
+      counts[record.type] = (counts[record.type] ?? 0) + 1;
+    });
+    return counts;
+  }, [records]);
+
+  const handleSaveRecord = (record: HealthRecordFormValues) => {
+    onAddRecord?.(record);
+    setOpenTypeModal(false);
+  };
 
   return (
     <div className="space-y-5">
@@ -106,7 +123,7 @@ export default function HealthRecordsSection({
                 <div className="p-3">
                   <p className="text-xs text-gray-500">{item.title}</p>
                   <p className="text-2xl font-semibold text-gray-900 mt-1">
-                    {item.count}
+                    {recordCounts[item.title] ?? 0}
                   </p>
                 </div>
                 <span
@@ -124,10 +141,29 @@ export default function HealthRecordsSection({
         })}
       </div>
 
+      {records.length > 0 && (
+        <div className="bg-white border rounded-2xl p-4 shadow-sm">
+          <p className="text-sm font-medium text-gray-800">
+            Added health records
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {records.map((record, index) => (
+              <span
+                key={`${record.type}-${index}`}
+                className="px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-xs"
+              >
+                {record.type} • {record.attachments.length} files
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {openTypeModal && (
         <RecordTypeModal
           open={openTypeModal}
           onClose={() => setOpenTypeModal(false)}
+          onSave={handleSaveRecord}
         />
       )}
     </div>

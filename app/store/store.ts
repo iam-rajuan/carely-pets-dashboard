@@ -3,10 +3,12 @@ import type { PreloadedState } from "@reduxjs/toolkit";
 
 import authReducer, { type AuthState, initialAuthState } from "./authSlice";
 import petReducer from "./petSlice";
+import usersReducer from "./usersSlice";
 
 const rootReducer = combineReducers({
   auth: authReducer,
   pet: petReducer,
+  users: usersReducer,
 });
 
 export type RootState = ReturnType<typeof rootReducer>;
