@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Upload, Eye, X, ChevronDown, Plus } from "lucide-react";
 import { GenderRow } from "./GenderRow";
 import { TrainingRow } from "./TrainingRow";
@@ -11,6 +12,7 @@ import { HealthRecordFormValues } from "./HealthRecordFormModal";
 import { useAppSelector } from "../../../store/hooks";
 
 export default function AddPetForAdoption() {
+  const router = useRouter();
   const [petInfoOpen, setPetInfoOpen] = useState(false);
   const [shelterInfoOpen, setShelterInfoOpen] = useState(false);
   const [snaps, setSnaps] = useState<File[]>([]);
@@ -18,17 +20,20 @@ export default function AddPetForAdoption() {
   const [traits, setTraits] = useState<string[]>([]);
   const [traitInput, setTraitInput] = useState("");
   const [healthRecords, setHealthRecords] = useState<HealthRecordFormValues[]>(
-    []
+    [],
   );
   const [submitStatus, setSubmitStatus] = useState<
     "idle" | "loading" | "succeeded" | "failed"
   >("idle");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const snapInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const accessToken = useAppSelector((state) => state.auth.tokens?.accessToken);
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   const normalizedBaseUrl = baseUrl ? baseUrl.replace(/\/+$/, "") : "";
   const maxFileSizeBytes = 15 * 1024 * 1024;
+  const sampleImageBase64 =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+X2S0AAAAASUVORK5CYII=";
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes}B`;
@@ -75,6 +80,102 @@ export default function AddPetForAdoption() {
     setTraits(traits.filter((t) => t !== trait));
   };
 
+  const createSampleImageFile = (name: string) => {
+    const binary = window.atob(sampleImageBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new File([bytes], name, { type: "image/png" });
+  };
+
+  const handleAutoFill = () => {
+    const form = formRef.current;
+    if (!form) return;
+
+    const petNames = ["Mochi", "Buddy", "Luna", "Ollie", "Nala", "Charlie"];
+    const petTypes = ["Dog", "Cat", "Rabbit", "Puppy"];
+    const breeds = ["Labrador", "Beagle", "Persian", "Mixed"];
+    const shelters = ["Carely Pets", "Happy Tails", "Safe Paws"];
+    const traitsPool = ["friendly", "playful", "gentle", "calm", "curious"];
+    const pick = <T,>(items: T[]) =>
+      items[Math.floor(Math.random() * items.length)];
+
+    const setValue = (name: string, value: string) => {
+      const field = form.elements.namedItem(name);
+      if (
+        field instanceof HTMLInputElement ||
+        field instanceof HTMLTextAreaElement
+      ) {
+        field.value = value;
+      }
+    };
+
+    const setRadio = (name: string, value: string) => {
+      const input = form.querySelector(
+        `input[name="${name}"][value="${value}"]`,
+      ) as HTMLInputElement | null;
+      if (input) input.checked = true;
+    };
+
+    const petName = pick(petNames);
+    const petType = pick(petTypes);
+    const breed = pick(breeds);
+    const shelterName = pick(shelters);
+    const personality = traitsPool.sort(() => 0.5 - Math.random()).slice(0, 3);
+
+    setPetInfoOpen(true);
+    setShelterInfoOpen(true);
+    setTraits(personality);
+    setTraitInput("");
+    setValue("petName", petName);
+    setValue("petType", petType);
+    setValue("breed", breed);
+    setValue("petAge", `${Math.floor(Math.random() * 10) + 1}`);
+    setValue("weightLbs", `${Math.floor(Math.random() * 60) + 5}`);
+    setValue(
+      "aboutPet",
+      `${petName} is a ${personality.join(", ")} ${petType.toLowerCase()}.`,
+    );
+    setValue("shelterName", shelterName);
+    setValue(
+      "shelterPhone",
+      `555-${Math.floor(Math.random() * 900) + 100}-${
+        Math.floor(Math.random() * 9000) + 1000
+      }`,
+    );
+    setRadio("gender", Math.random() > 0.5 ? "male" : "female");
+    setRadio("trained", Math.random() > 0.5 ? "true" : "false");
+    setRadio("vaccinated", Math.random() > 0.5 ? "true" : "false");
+    setRadio("neutered", Math.random() > 0.5 ? "true" : "false");
+
+    setSnaps([
+      createSampleImageFile("pet-snap-1.png"),
+      createSampleImageFile("pet-snap-2.png"),
+    ]);
+    setHealthRecords([
+      {
+        type: "Vaccination",
+        recordName: "Rabies shot",
+        batchNumber: "RB-102",
+        otherInfo: "Annual vaccination",
+        vetDesignation: "DVM",
+        vetName: "Dr. Patel",
+        clinicName: "Northside Vet",
+        licenseNumber: "LIC-00982",
+        contact: "555-321-4422",
+        weight: "18 lbs",
+        temperature: "101.2 F",
+        heartRate: "90 bpm",
+        respiratory: "18 bpm",
+        status: "Normal",
+        attachments: [createSampleImageFile("health-record-1.png")],
+      },
+    ]);
+    setSnapError(null);
+    setSubmitError(null);
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitError(null);
@@ -90,20 +191,20 @@ export default function AddPetForAdoption() {
 
     const invalidRecord = healthRecords.find(
       (record) =>
-        record.attachments.length < 1 || record.attachments.length > 3
+        record.attachments.length < 1 || record.attachments.length > 3,
     );
     if (invalidRecord) {
       setSubmitError(
-        `Health record "${invalidRecord.type}" must include 1-3 attachments.`
+        `Health record "${invalidRecord.type}" must include 1-3 attachments.`,
       );
       return;
     }
     const oversizeRecord = healthRecords.find((record) =>
-      record.attachments.some((file) => file.size > maxFileSizeBytes)
+      record.attachments.some((file) => file.size > maxFileSizeBytes),
     );
     if (oversizeRecord) {
       setSubmitError(
-        `Health record "${oversizeRecord.type}" has files over 15MB.`
+        `Health record "${oversizeRecord.type}" has files over 15MB.`,
       );
       return;
     }
@@ -122,7 +223,12 @@ export default function AddPetForAdoption() {
     const getValue = (name: string) => (formData.get(name) ?? "").toString();
 
     const payload = new FormData();
-    payload.append("petName", getValue("petName"));
+    const petName = getValue("petName");
+    const aboutPet = getValue("aboutPet");
+    const shelterName = getValue("shelterName");
+    const shelterPhone = getValue("shelterPhone");
+
+    payload.append("petName", petName);
     payload.append("petType", getValue("petType"));
     payload.append("breed", getValue("breed"));
     payload.append("petAge", getValue("petAge"));
@@ -132,10 +238,10 @@ export default function AddPetForAdoption() {
     payload.append("vaccinated", getValue("vaccinated"));
     payload.append("neutered", getValue("neutered"));
     payload.append("personality", JSON.stringify(traits));
-    payload.append("aboutPet", getValue("aboutPet"));
-    payload.append("shelterName", getValue("shelterName"));
-    payload.append("shelterPhone", getValue("shelterPhone"));
-    payload.append("avatarIndex", "1");
+    payload.append("aboutPet", aboutPet);
+    payload.append("shelterName", shelterName);
+    payload.append("shelterPhone", shelterPhone);
+    payload.append("avaterIndex", "1");
 
     snaps.forEach((file) => payload.append("photos", file));
     healthRecords.forEach((record) => {
@@ -143,15 +249,42 @@ export default function AddPetForAdoption() {
         payload.append("healthRecords", file);
       });
     });
-    if (healthRecords.length) {
-      const healthFiles = healthRecords.map(({ attachments, ...rest }) => rest);
-      payload.append("healthFiles", JSON.stringify(healthFiles));
-    }
-
     setSubmitStatus("loading");
     setSubmitError(null);
 
     try {
+      if (process.env.NODE_ENV !== "production") {
+        const grouped = Array.from(payload.entries()).reduce(
+          (acc, [key, value]) => {
+            const next = acc[key] ?? [];
+            next.push(value);
+            acc[key] = next;
+            return acc;
+          },
+          {} as Record<string, Array<FormDataEntryValue>>,
+        );
+        const preview = Object.entries(grouped).reduce(
+          (acc, [key, values]) => {
+            if (key === "personality") {
+              acc[key] = values.map((value) => {
+                if (typeof value !== "string") return value;
+                try {
+                  return JSON.parse(value);
+                } catch {
+                  return value;
+                }
+              });
+              return acc;
+            }
+            acc[key] = values.map((value) =>
+              value instanceof File ? value.name : value,
+            );
+            return acc;
+          },
+          {} as Record<string, Array<string | string[] | File>>,
+        );
+        console.log(preview);
+      }
       const response = await fetch(`${normalizedBaseUrl}/admin/adoptions`, {
         method: "POST",
         headers: {
@@ -177,16 +310,18 @@ export default function AddPetForAdoption() {
       setTraitInput("");
       setHealthRecords([]);
       event.currentTarget.reset();
+      router.back();
+      window.setTimeout(() => window.location.reload(), 100);
     } catch (err) {
       setSubmitStatus("failed");
       setSubmitError(
-        err instanceof Error ? err.message : "Failed to add pet for adoption."
+        err instanceof Error ? err.message : "Failed to add pet for adoption.",
       );
     }
   };
 
   return (
-    <form className="space-y-10" onSubmit={handleSubmit}>
+    <form ref={formRef} className="space-y-10" onSubmit={handleSubmit}>
       {/* HEADER */}
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">
@@ -195,6 +330,13 @@ export default function AddPetForAdoption() {
         <p className="text-gray-600">
           This section will help admin to add information of the pet.
         </p>
+        <button
+          type="button"
+          onClick={handleAutoFill}
+          className="mt-4 inline-flex items-center rounded-xl bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
+        >
+          Random fill
+        </button>
       </div>
 
       {/* ------------------- PET SNAPS ------------------- */}
@@ -272,11 +414,7 @@ export default function AddPetForAdoption() {
 
         {petInfoOpen && (
           <div className="mt-6 space-y-6 animate-fadeIn">
-            <InputField
-              label="NAME"
-              name="petName"
-              placeholder="Pet name"
-            />
+            <InputField label="NAME" name="petName" placeholder="Pet name" />
             <InputField
               label="TYPE"
               name="petType"
@@ -384,9 +522,7 @@ export default function AddPetForAdoption() {
       {/* ------------------- HEALTH RECORDS ------------------- */}
       <HealthRecordsSection
         records={healthRecords}
-        onAddRecord={(record) =>
-          setHealthRecords((prev) => [...prev, record])
-        }
+        onAddRecord={(record) => setHealthRecords((prev) => [...prev, record])}
       />
 
       {/* ACTION BUTTONS */}

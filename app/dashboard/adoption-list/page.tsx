@@ -87,7 +87,7 @@ export default function AdoptionManagementPage() {
       </div>
 
       {/* TABLE */}
-      <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white border rounded-2xl shadow-sm">
         <table className="w-full text-left">
           <thead className="bg-gray-50">
             <tr>

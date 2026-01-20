@@ -1,7 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Eye } from "lucide-react";
+import {
+  Bug,
+  Bone,
+  Eye,
+  FileText,
+  Pill,
+  Scissors,
+  Stethoscope,
+  Syringe,
+} from "lucide-react";
 import HealthRecordsModal, {
   type HealthRecordsModalRecord,
 } from "../components/HealthRecordsModal";
@@ -31,29 +40,49 @@ const snaps = [
   { id: 3, name: "File name", size: "245KB" },
 ];
 
-const healthRecords = [
+const healthRecordTypes = [
   {
     label: "Vaccination",
-    count: 12,
-    color: "bg-green-100",
-    dot: "bg-green-500",
+    icon: Syringe,
+    iconBg: "bg-green-100",
+    iconColor: "text-green-600",
   },
-  { label: "Check-up", count: 12, color: "bg-blue-100", dot: "bg-blue-500" },
-  { label: "Medication", count: 12, color: "bg-red-100", dot: "bg-red-500" },
+  {
+    label: "Check-up",
+    icon: Stethoscope,
+    iconBg: "bg-blue-100",
+    iconColor: "text-blue-600",
+  },
+  {
+    label: "Medication",
+    icon: Pill,
+    iconBg: "bg-red-100",
+    iconColor: "text-red-600",
+  },
   {
     label: "Tick & Flea",
-    count: 12,
-    color: "bg-purple-100",
-    dot: "bg-purple-500",
+    icon: Bug,
+    iconBg: "bg-purple-100",
+    iconColor: "text-purple-600",
   },
-  { label: "Surgery", count: 12, color: "bg-pink-100", dot: "bg-pink-500" },
+  {
+    label: "Surgery",
+    icon: Scissors,
+    iconBg: "bg-pink-100",
+    iconColor: "text-pink-600",
+  },
   {
     label: "Dental",
-    count: 12,
-    color: "bg-orange-100",
-    dot: "bg-orange-500",
+    icon: Bone,
+    iconBg: "bg-orange-100",
+    iconColor: "text-orange-600",
   },
-  { label: "Other", count: 12, color: "bg-gray-100", dot: "bg-gray-500" },
+  {
+    label: "Other",
+    icon: FileText,
+    iconBg: "bg-gray-200",
+    iconColor: "text-gray-600",
+  },
 ];
 
 const recordData: HealthRecord[] = [
@@ -155,6 +184,14 @@ const recordData: HealthRecord[] = [
 
 export default function ViewPetPage() {
   const [viewType, setViewType] = useState<string | null>(null);
+
+  const recordCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    recordData.forEach((record) => {
+      counts[record.type] = (counts[record.type] ?? 0) + 1;
+    });
+    return counts;
+  }, []);
 
   const recordsForView: HealthRecordsModalRecord[] = useMemo(() => {
     if (!viewType) return [];
@@ -295,38 +332,40 @@ export default function ViewPetPage() {
           view that file.
         </p>
 
-        <div className="grid md:grid-cols-4 gap-6 mt-5">
-          {healthRecords.map((rec) => (
-            <div
-              key={rec.label}
-              className="rounded-xl bg-white border shadow-sm p-5"
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-sm font-medium text-gray-800">
-                    {rec.label}
-                  </p>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">
-                    {rec.count}
-                  </p>
-                </div>
-
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center ${rec.color}`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${rec.dot}`}></span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setViewType(rec.label)}
-                className="mt-4 text-sm text-gray-700 font-medium w-full py-2 rounded-lg bg-gray-50 hover:bg-gray-100 flex items-center justify-center gap-1"
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5">
+          {healthRecordTypes.map((recordType) => {
+            const Icon = recordType.icon;
+            return (
+              <div
+                key={recordType.label}
+                className="bg-gray-50 border border-gray-100 rounded-2xl p-4"
               >
-                View →
-              </button>
-            </div>
-          ))}
+                <div className="flex items-start justify-between">
+                  <div className="p-3">
+                    <p className="text-xs text-gray-500">
+                      {recordType.label}
+                    </p>
+                    <p className="text-2xl font-semibold text-gray-900 mt-1">
+                      {recordCounts[recordType.label] ?? 0}
+                    </p>
+                  </div>
+                  <span
+                    className={`h-9 w-9 rounded-full flex items-center justify-center ${recordType.iconBg}`}
+                  >
+                    <Icon className={`h-4 w-4 ${recordType.iconColor}`} />
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setViewType(recordType.label)}
+                  className="mt-4 w-full bg-white text-gray-600 text-sm font-medium rounded-full py-2 flex items-center justify-center gap-1 border border-gray-200 hover:bg-gray-100"
+                >
+                  View →
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 

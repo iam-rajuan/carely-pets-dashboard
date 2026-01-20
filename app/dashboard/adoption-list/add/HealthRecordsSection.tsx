@@ -127,6 +127,7 @@ export default function HealthRecordsSection({
         </div>
 
         <button
+          type="button"
           onClick={() => setOpenTypeModal(true)}
           className="px-4 py-2 bg-[#D6F2F8] hover:bg-[#c9edf5] rounded-xl flex items-center gap-2"
         >
