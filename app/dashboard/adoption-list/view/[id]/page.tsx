@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bug,
   Bone,
@@ -11,9 +11,11 @@ import {
   Stethoscope,
   Syringe,
 } from "lucide-react";
+import { useParams } from "next/navigation";
 import HealthRecordsModal, {
   type HealthRecordsModalRecord,
-} from "../components/HealthRecordsModal";
+} from "../../components/HealthRecordsModal";
+import { useAppSelector } from "../../../../store/hooks";
 
 type AttachmentType = "pdf" | "doc" | "image";
 
@@ -33,12 +35,6 @@ interface HealthRecord {
   reminder: string;
   attachments: RecordAttachment[];
 }
-
-const snaps = [
-  { id: 1, name: "File name", size: "245KB" },
-  { id: 2, name: "File name", size: "245KB" },
-  { id: 3, name: "File name", size: "245KB" },
-];
 
 const healthRecordTypes = [
   {
@@ -85,105 +81,148 @@ const healthRecordTypes = [
   },
 ];
 
-const recordData: HealthRecord[] = [
-    {
-      id: "1",
-      type: "Vaccination",
-      name: "Rabies vaccination",
-      updatedAt: "Jan 6, 2025",
-      reminder: "Reminder in 1 week",
-      attachments: [
-        {
-          id: "1-a",
-          name: "rabies-certificate.pdf",
-          type: "pdf",
-          url: "/file.svg",
-          size: "245KB",
-        },
-        {
-          id: "1-b",
-          name: "clinic-photo.jpg",
-          type: "image",
-          url: "/paw.svg",
-          size: "1.2MB",
-        },
-      ],
-    },
-    {
-      id: "2",
-      type: "Vaccination",
-      name: "DHLPP dose 2",
-      updatedAt: "Jan 6, 2025",
-      reminder: "Reminder in 1 week",
-      attachments: [
-        {
-          id: "2-a",
-          name: "dose2-document.doc",
-          type: "doc",
-          url: "/file.svg",
-          size: "180KB",
-        },
-      ],
-    },
-    {
-      id: "3",
-      type: "Check-up",
-      name: "Leptospirosis",
-      updatedAt: "Jan 6, 2025",
-      reminder: "Reminder in 1 week",
-      attachments: [
-        {
-          id: "3-a",
-          name: "lepto-summary.pdf",
-          type: "pdf",
-          url: "/file.svg",
-          size: "210KB",
-        },
-        {
-          id: "3-b",
-          name: "exam-photo.jpg",
-          type: "image",
-          url: "/paw.svg",
-          size: "980KB",
-        },
-      ],
-    },
-    {
-      id: "4",
-      type: "Dental",
-      name: "Bordetella",
-      updatedAt: "Jan 6, 2025",
-      reminder: "Reminder in 1 week",
-      attachments: [
-        {
-          id: "4-a",
-          name: "bordetella.pdf",
-          type: "pdf",
-          url: "/file.svg",
-          size: "196KB",
-        },
-      ],
-    },
-    {
-      id: "5",
-      type: "Medication",
-      name: "Parainfluenza",
-      updatedAt: "Jan 6, 2025",
-      reminder: "Reminder in 1 week",
-      attachments: [
-        {
-          id: "5-a",
-          name: "parainfluenza-image.jpg",
-          type: "image",
-          url: "/paw.svg",
-          size: "1.1MB",
-        },
-      ],
-    },
-];
+type AdoptionDetail = {
+  _id: string;
+  title?: string | null;
+  description?: string | null;
+  status?: string | null;
+  petName?: string | null;
+  species?: string | null;
+  breed?: string | null;
+  age?: number | null;
+  weightLbs?: number | null;
+  gender?: string | null;
+  trained?: boolean | null;
+  vaccinated?: boolean | null;
+  neutered?: boolean | null;
+  personality?: string[] | null;
+  aboutPet?: string | null;
+  photos?: string[] | null;
+  shelterName?: string | null;
+  shelterPhone?: string | null;
+  healthRecords?: HealthRecord[] | null;
+};
+
+type AdoptionDetailResponse = {
+  success: boolean;
+  data: AdoptionDetail;
+};
+
+const getAttachmentType = (nameOrUrl: string): AttachmentType => {
+  const lower = nameOrUrl.toLowerCase();
+  if (lower.endsWith(".pdf")) return "pdf";
+  if (lower.endsWith(".doc") || lower.endsWith(".docx")) return "doc";
+  return "image";
+};
+
+const getFileName = (url: string) => {
+  const parts = url.split("/");
+  return parts[parts.length - 1] || "File";
+};
 
 export default function ViewPetPage() {
+  const params = useParams<{ id: string }>();
+  const accessToken = useAppSelector((state) => state.auth.tokens?.accessToken);
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const normalizedBaseUrl = baseUrl ? baseUrl.replace(/\/+$/, "") : "";
+  const [petData, setPetData] = useState<AdoptionDetail | null>(null);
+  const [status, setStatus] = useState<"idle" | "loading" | "failed">("idle");
+  const [error, setError] = useState<string | null>(null);
   const [viewType, setViewType] = useState<string | null>(null);
+
+  useEffect(() => {
+    const listingId = params?.id;
+    if (!listingId) return;
+    if (!normalizedBaseUrl) {
+      setError("NEXT_PUBLIC_API_BASE_URL is not set.");
+      setStatus("failed");
+      return;
+    }
+    if (!accessToken) {
+      setError("Missing access token.");
+      setStatus("failed");
+      return;
+    }
+
+    let isMounted = true;
+    const fetchDetail = async () => {
+      setStatus("loading");
+      setError(null);
+      try {
+        const response = await fetch(
+          `${normalizedBaseUrl}/admin/adoptions/${listingId}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+          },
+        );
+
+        if (!response.ok) {
+          let message = "Failed to fetch adoption detail.";
+          try {
+            const errorBody = await response.json();
+            message = errorBody?.message ?? message;
+          } catch {
+            try {
+              const errorText = await response.text();
+              if (errorText) message = errorText;
+            } catch {
+              // Keep fallback message.
+            }
+          }
+          throw new Error(message);
+        }
+
+        const data = (await response.json()) as AdoptionDetailResponse;
+        if (!data?.data) {
+          throw new Error("Invalid adoption detail response.");
+        }
+        if (isMounted) {
+          setPetData(data.data);
+          setStatus("idle");
+        }
+      } catch (err) {
+        if (isMounted) {
+          setStatus("failed");
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Failed to fetch adoption detail.",
+          );
+        }
+      }
+    };
+
+    fetchDetail();
+    return () => {
+      isMounted = false;
+    };
+  }, [accessToken, normalizedBaseUrl, params]);
+
+  const recordData = useMemo(() => {
+    if (!petData?.healthRecords?.length) return [];
+    return petData.healthRecords.map((record, index) => ({
+      id: record.id || `${record.type}-${index}`,
+      type: record.type || "Other",
+      name: record.name || record.type || "Record",
+      updatedAt: record.updatedAt || "N/A",
+      reminder: record.reminder || "No reminder",
+      attachments: (record.attachments ?? []).map((attachment, attachmentIndex) => {
+        const url = attachment.url || "";
+        const name = attachment.name || getFileName(url);
+        return {
+          id: attachment.id || `${index}-${attachmentIndex}`,
+          name,
+          type: attachment.type || getAttachmentType(name),
+          url,
+          size: attachment.size || "N/A",
+        };
+      }),
+    }));
+  }, [petData]);
 
   const recordCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -191,7 +230,7 @@ export default function ViewPetPage() {
       counts[record.type] = (counts[record.type] ?? 0) + 1;
     });
     return counts;
-  }, []);
+  }, [recordData]);
 
   const recordsForView: HealthRecordsModalRecord[] = useMemo(() => {
     if (!viewType) return [];
@@ -209,7 +248,15 @@ export default function ViewPetPage() {
           sizeLabel: attachment.size,
         })),
       }));
-  }, [viewType]);
+  }, [viewType, recordData]);
+
+  const petName = petData?.petName ?? petData?.title ?? "Pet";
+  const petAge = petData?.age;
+  const personality = petData?.personality?.length
+    ? petData.personality.join(", ")
+    : "N/A";
+  const aboutPet = petData?.aboutPet ?? petData?.description ?? "N/A";
+  const photos = petData?.photos ?? [];
 
   return (
     <div className="px-6 py-5">
@@ -239,90 +286,141 @@ export default function ViewPetPage() {
         </button>
       </div>
 
+      {status === "loading" && (
+        <p className="mt-6 text-sm text-gray-600">Loading adoption detail...</p>
+      )}
+      {status === "failed" && (
+        <p className="mt-6 text-sm text-red-600">
+          {error ?? "Failed to load adoption detail."}
+        </p>
+      )}
+
       {/* PET TITLE */}
-      <div className="flex items-center gap-2 mt-6">
-        <h2 className="text-2xl font-semibold text-gray-900">Bubby</h2>
-        <span className="text-gray-600 text-sm">• 2 years</span>
-      </div>
+      {petData && status !== "failed" && (
+        <div className="flex items-center gap-2 mt-6">
+          <h2 className="text-2xl font-semibold text-gray-900">{petName}</h2>
+          {typeof petAge === "number" && (
+            <span className="text-gray-600 text-sm">
+              • {petAge} year{petAge === 1 ? "" : "s"}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* PET MAIN DETAILS */}
-      <div className="grid md:grid-cols-3 gap-6 bg-none border-t mt-6 pt-6">
-        <Detail icon="🐶" title="TYPE" value="Dog" />
-        <Detail icon="♂️" title="GENDER" value="Male" />
-        <Detail icon="🐕" title="BREED" value="Husky" />
+      {petData && status !== "failed" && (
+        <div className="grid md:grid-cols-3 gap-6 bg-none border-t mt-6 pt-6">
+          <Detail
+            icon="🐶"
+            title="TYPE"
+            value={petData.species ?? "N/A"}
+          />
+          <Detail
+            icon="♂️"
+            title="GENDER"
+            value={petData.gender ?? "N/A"}
+          />
+          <Detail
+            icon="🐕"
+            title="BREED"
+            value={petData.breed ?? "N/A"}
+          />
 
-        <Detail icon="🎓" title="TRAINED" value="Yes" />
-        <Detail icon="✂️" title="NEUTERED" value="Yes" />
-        <Detail icon="💉" title="VACCINATED" value="Yes" />
+          <Detail
+            icon="🎓"
+            title="TRAINED"
+            value={petData.trained ? "Yes" : "No"}
+          />
+          <Detail
+            icon="✂️"
+            title="NEUTERED"
+            value={petData.neutered ? "Yes" : "No"}
+          />
+          <Detail
+            icon="💉"
+            title="VACCINATED"
+            value={petData.vaccinated ? "Yes" : "No"}
+          />
 
-        <Detail icon="❤️" title="HEART RATE" value="45 bpm" />
-        <Detail icon="🫁" title="RESPIRATORY" value="56 rpm" />
-        <Detail icon="🌡️" title="TEMPERATURE" value="36°C" />
+          <Detail
+            icon="⚖️"
+            title="WEIGHT"
+            value={
+              typeof petData.weightLbs === "number"
+                ? `${petData.weightLbs} lbs`
+                : "N/A"
+            }
+          />
 
-        <Detail icon="⚖️" title="WEIGHT" value="56 lbs" />
-
-        <div className="flex gap-3 items-start mt-4">
-          <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-xl">
-            🏠
+          <div className="flex gap-3 items-start mt-4">
+            <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-xl">
+              🏠
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 font-medium">
+                Shelter Information
+              </p>
+              <p className="font-medium text-gray-800">
+                {petData.shelterName ?? "N/A"}
+              </p>
+              <p className="text-gray-500 text-sm">
+                {petData.shelterPhone ?? "N/A"}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs text-gray-500 font-medium">
-              Shelter Information
-            </p>
-            <p className="font-medium text-gray-800">Carely Pets</p>
-            <p className="text-gray-500 text-sm">555 458 5555</p>
+
+          <div className="md:col-span-3 mt-4">
+            <p className="text-xs text-gray-500 font-medium">PERSONALITY</p>
+            <p className="font-medium text-gray-800 mt-1">{personality}</p>
           </div>
         </div>
-
-        <div className="md:col-span-3 mt-4">
-          <p className="text-xs text-gray-500 font-medium">PERSONALITY</p>
-          <p className="font-medium text-gray-800 mt-1">
-            Friendly, Loyal, Good with kids, Intelligent, Energetic
-          </p>
-        </div>
-      </div>
+      )}
 
       {/* ABOUT PET */}
-      <div className="mt-10">
-        <h3 className="text-lg font-semibold text-gray-900">About Pet</h3>
+      {petData && status !== "failed" && (
+        <div className="mt-10">
+          <h3 className="text-lg font-semibold text-gray-900">About Pet</h3>
 
-        <p className="text-gray-700 text-sm mt-2 max-w-3xl">
-          A playful, affectionate cat who spends her days exploring cozy
-          corners, chasing soft toys, and curling up in warm laps. She’s
-          curious, gentle, and always ready to share a quiet moment of comfort.
-          <button className="text-[#00A9C8] ml-1 hover:underline">
-            See more
-          </button>
-        </p>
-      </div>
+          <p className="text-gray-700 text-sm mt-2 max-w-3xl">{aboutPet}</p>
+        </div>
+      )}
 
       {/* PET SNAPS */}
-      <div className="mt-10">
-        <h3 className="text-lg font-semibold text-gray-900">Pet Snaps</h3>
+      {petData && status !== "failed" && (
+        <div className="mt-10">
+          <h3 className="text-lg font-semibold text-gray-900">Pet Snaps</h3>
 
-        <div className="mt-4 border rounded-xl bg-white">
-          {snaps.map((file) => (
-            <div
-              key={file.id}
-              className="flex items-center justify-between px-4 py-4 border-b last:border-0"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600">
-                  📷
-                </div>
-                <div>
-                  <p className="font-medium text-gray-800">{file.name}</p>
-                  <p className="text-xs text-gray-500">
-                    File type • {file.size}
-                  </p>
-                </div>
+          <div className="mt-4 border rounded-xl bg-white">
+            {photos.length ? (
+              photos.map((photo, index) => {
+                const name = getFileName(photo);
+                return (
+                  <div
+                    key={`${photo}-${index}`}
+                    className="flex items-center justify-between px-4 py-4 border-b last:border-0"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600">
+                        📷
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-800">{name}</p>
+                        <p className="text-xs text-gray-500">Image</p>
+                      </div>
+                    </div>
+
+                    <Eye className="text-gray-500 w-5 h-5 cursor-pointer" />
+                  </div>
+                );
+              })
+            ) : (
+              <div className="px-4 py-4 text-sm text-gray-500">
+                No snaps uploaded.
               </div>
-
-              <Eye className="text-gray-500 w-5 h-5 cursor-pointer" />
-            </div>
-          ))}
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* HEALTH RECORDS */}
       <div className="mt-12">

@@ -223,32 +223,59 @@ export default function AddPetForAdoption() {
     const getValue = (name: string) => (formData.get(name) ?? "").toString();
 
     const payload = new FormData();
-    const petName = getValue("petName");
-    const aboutPet = getValue("aboutPet");
-    const shelterName = getValue("shelterName");
-    const shelterPhone = getValue("shelterPhone");
+    const petName = getValue("petName").trim();
+    const petType = getValue("petType").trim();
+    const breed = getValue("breed").trim();
+    const petAge = getValue("petAge").trim();
+    const weightLbs = getValue("weightLbs").trim();
+    const gender = getValue("gender").trim();
+    const trained = getValue("trained").trim();
+    const vaccinated = getValue("vaccinated").trim();
+    const neutered = getValue("neutered").trim();
+    const aboutPet = getValue("aboutPet").trim();
+    const shelterName = getValue("shelterName").trim();
+    const shelterPhone = getValue("shelterPhone").trim();
+
+    const missingFields: string[] = [];
+    if (!petName) missingFields.push("pet name");
+    if (!petType) missingFields.push("pet type");
+    if (!breed) missingFields.push("breed");
+    if (!petAge) missingFields.push("pet age");
+    if (!weightLbs) missingFields.push("weight");
+    if (!gender) missingFields.push("gender");
+    if (!trained) missingFields.push("trained");
+    if (!vaccinated) missingFields.push("vaccinated");
+    if (!neutered) missingFields.push("neutered");
+    if (!aboutPet) missingFields.push("about pet");
+    if (!shelterName) missingFields.push("shelter name");
+    if (!shelterPhone) missingFields.push("shelter phone");
+    if (!traits.length) missingFields.push("personality traits");
+
+    if (missingFields.length) {
+      setSubmitError(
+        `Please fill: ${missingFields.join(", ")} before submitting.`,
+      );
+      return;
+    }
 
     payload.append("petName", petName);
-    payload.append("petType", getValue("petType"));
-    payload.append("breed", getValue("breed"));
-    payload.append("petAge", getValue("petAge"));
-    payload.append("weightLbs", getValue("weightLbs"));
-    payload.append("gender", getValue("gender"));
-    payload.append("trained", getValue("trained"));
-    payload.append("vaccinated", getValue("vaccinated"));
-    payload.append("neutered", getValue("neutered"));
+    payload.append("petType", petType);
+    payload.append("breed", breed);
+    payload.append("petAge", petAge);
+    payload.append("weightLbs", weightLbs);
+    payload.append("gender", gender);
+    payload.append("trained", trained);
+    payload.append("vaccinated", vaccinated);
+    payload.append("neutered", neutered);
     payload.append("personality", JSON.stringify(traits));
     payload.append("aboutPet", aboutPet);
     payload.append("shelterName", shelterName);
     payload.append("shelterPhone", shelterPhone);
-    payload.append("avaterIndex", "1");
+    payload.append("avatarIndex", "1");
 
     snaps.forEach((file) => payload.append("photos", file));
-    healthRecords.forEach((record) => {
-      record.attachments.forEach((file) => {
-        payload.append("healthRecords", file);
-      });
-    });
+    // Only send healthRecords if explicitly needed by the backend.
+    // For now, omit them to match the minimal payload shown in Postman.
     setSubmitStatus("loading");
     setSubmitError(null);
 
@@ -293,25 +320,31 @@ export default function AddPetForAdoption() {
         body: payload,
       });
 
-      if (!response.ok) {
-        let message = "Failed to add pet for adoption.";
+      if (response.ok) {
+        setSubmitStatus("succeeded");
+        setSnaps([]);
+        setTraits([]);
+        setTraitInput("");
+        setHealthRecords([]);
+        event.currentTarget.reset();
+        router.back();
+        window.setTimeout(() => window.location.reload(), 100);
+        return;
+      }
+
+      let message = "Failed to add pet for adoption.";
+      try {
+        const errorBody = await response.json();
+        message = errorBody?.message ?? message;
+      } catch {
         try {
-          const errorBody = await response.json();
-          message = errorBody?.message ?? message;
+          const errorText = await response.text();
+          if (errorText) message = errorText;
         } catch {
           // Keep fallback message.
         }
-        throw new Error(message);
       }
-
-      setSubmitStatus("succeeded");
-      setSnaps([]);
-      setTraits([]);
-      setTraitInput("");
-      setHealthRecords([]);
-      event.currentTarget.reset();
-      router.back();
-      window.setTimeout(() => window.location.reload(), 100);
+      throw new Error(message);
     } catch (err) {
       setSubmitStatus("failed");
       setSubmitError(
