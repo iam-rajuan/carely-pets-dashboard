@@ -2,12 +2,14 @@ import { combineReducers, configureStore } from "@reduxjs/toolkit";
 
 import authReducer, { type AuthState, initialAuthState } from "./authSlice";
 import adoptionReducer from "./adoptionSlice";
+import adoptionRequestsReducer from "./adoptionRequestsSlice";
 import petReducer from "./petSlice";
 import usersReducer from "./usersSlice";
 
 const rootReducer = combineReducers({
   auth: authReducer,
   adoption: adoptionReducer,
+  adoptionRequests: adoptionRequestsReducer,
   pet: petReducer,
   users: usersReducer,
 });

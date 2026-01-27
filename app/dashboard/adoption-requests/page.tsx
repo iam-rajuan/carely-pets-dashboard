@@ -1,119 +1,71 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import ConfirmModal from "../report/ConfirmModal";
 import { useRouter } from "next/navigation";
-import { useAppSelector } from "../../store/hooks";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
+import {
+  fetchAdoptionRequests,
+  deleteAdoptionRequest,
+  updateAdoptionRequestStatus,
+} from "../../store/adoptionRequestsSlice";
 
 export default function AdoptRequestsPage() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [menuOpen, setMenuOpen] = useState<string | "filter" | null>(null);
   const [deleteModal, setDeleteModal] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const router = useRouter();
-  const accessToken = useAppSelector((state) => state.auth.tokens?.accessToken);
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-  const normalizedBaseUrl = baseUrl ? baseUrl.replace(/\/+$/, "") : "";
-  const [requests, setRequests] = useState<AdoptionRequest[]>([]);
-  const [fetchStatus, setFetchStatus] = useState<
-    "idle" | "loading" | "failed"
-  >("idle");
-  const [fetchError, setFetchError] = useState<string | null>(null);
-
-  interface AdoptionRequest {
-    id: string;
-    listingId: string;
-    customerId?: string | null;
-    customerName?: string | null;
-    petType: string;
-    petBreed: string;
-    petAge: number;
-    status: string;
-  }
+  const dispatch = useAppDispatch();
+  const requests = useAppSelector((state) => state.adoptionRequests.items);
+  const fetchStatus = useAppSelector((state) => state.adoptionRequests.status);
+  const fetchError = useAppSelector((state) => state.adoptionRequests.error);
+  const updateStatus = useAppSelector(
+    (state) => state.adoptionRequests.updateStatus,
+  );
+  const updateError = useAppSelector(
+    (state) => state.adoptionRequests.updateError,
+  );
+  const deleteStatus = useAppSelector(
+    (state) => state.adoptionRequests.deleteStatus,
+  );
+  const deleteError = useAppSelector(
+    (state) => state.adoptionRequests.deleteError,
+  );
 
   const filtered = useMemo(() => {
     if (statusFilter === "All") return requests;
-    const target = statusFilter.toLowerCase();
+    const target =
+      statusFilter === "Not Delivered" ? "not_delivered" : statusFilter.toLowerCase();
     return requests.filter(
       (request) => request.status?.toLowerCase() === target,
     );
   }, [requests, statusFilter]);
 
-  const handleDelete = () => {
-    console.log("Deleting ID:", selectedId);
+  const handleDelete = async () => {
+    if (!selectedId) return;
+    await dispatch(deleteAdoptionRequest({ id: selectedId }));
     setDeleteModal(false);
+    setSelectedId(null);
+    dispatch(fetchAdoptionRequests({ status: "all" }));
+  };
+
+  const updateRequestStatus = async (id: string, status: string) => {
+    await dispatch(updateAdoptionRequestStatus({ id, status }));
+    dispatch(fetchAdoptionRequests({ status: "all" }));
   };
 
   useEffect(() => {
-    if (!normalizedBaseUrl) {
-      setFetchStatus("failed");
-      setFetchError("NEXT_PUBLIC_API_BASE_URL is not set.");
-      return;
-    }
-    if (!accessToken) {
-      setFetchStatus("failed");
-      setFetchError("Missing access token.");
-      return;
-    }
-
-    const controller = new AbortController();
-    const fetchRequests = async () => {
-      setFetchStatus("loading");
-      setFetchError(null);
-      try {
-        const response = await fetch(
-          `${normalizedBaseUrl}/admin/adoptions/requests?status=all`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-            signal: controller.signal,
-          },
-        );
-
-        if (!response.ok) {
-          let message = "Failed to load adoption requests.";
-          try {
-            const errorBody = await response.json();
-            message = errorBody?.message ?? message;
-          } catch {
-            try {
-              const errorText = await response.text();
-              if (errorText) message = errorText;
-            } catch {
-              // Keep fallback message.
-            }
-          }
-          throw new Error(message);
-        }
-
-        const body = await response.json();
-        const records = Array.isArray(body?.data) ? body.data : [];
-        setRequests(records);
-        setFetchStatus("idle");
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setFetchStatus("failed");
-        setFetchError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load adoption requests.",
-        );
-      }
-    };
-
-    fetchRequests();
-    return () => controller.abort();
-  }, [accessToken, normalizedBaseUrl]);
+    dispatch(fetchAdoptionRequests({ status: "all" }));
+  }, [dispatch]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(null);
-      }
+      const target = e.target as Element | null;
+      if (target?.closest("[data-menu-root]")) return;
+      setMenuOpen(null);
     };
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -134,7 +86,7 @@ export default function AdoptRequestsPage() {
         </div>
 
         {/* STATUS FILTER */}
-        <div className="relative">
+        <div className="relative" data-menu-root>
           <button
             className="px-4 py-2 border-0 rounded-xl text-gray-800 bg-[#00a7c7]/30 flex items-center gap-2"
             onClick={() => setMenuOpen(menuOpen === "filter" ? null : "filter")}
@@ -143,10 +95,7 @@ export default function AdoptRequestsPage() {
           </button>
 
           {menuOpen === "filter" && (
-            <div
-              ref={menuRef}
-              className="absolute right-0 mt-2 w-40 bg-white shadow-lg rounded-xl border z-20"
-            >
+            <div className="absolute right-0 mt-2 w-40 bg-white shadow-lg rounded-xl border z-20">
               <button
                 onClick={() => {
                   setStatusFilter("Pending");
@@ -165,6 +114,15 @@ export default function AdoptRequestsPage() {
               >
                 Delivered
               </button>
+              <button
+                onClick={() => {
+                  setStatusFilter("Not Delivered");
+                  setMenuOpen(null);
+                }}
+                className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-800"
+              >
+                Not Delivered
+              </button>
 
               <button
                 onClick={() => {
@@ -181,7 +139,7 @@ export default function AdoptRequestsPage() {
       </div>
 
       {/* TABLE */}
-      <div className="mt-6 bg-white border rounded-xl overflow-hidden">
+      <div className="mt-6 bg-white border rounded-xl overflow-visible">
         <table className="w-full">
           <thead className="bg-gray-50 text-gray-700 text-left text-sm font-medium">
             <tr>
@@ -246,6 +204,11 @@ export default function AdoptRequestsPage() {
                       Pending
                       <span className="h-2 w-2 bg-yellow-500 rounded-full" />
                     </span>
+                  ) : item.status?.toLowerCase() === "not_delivered" ? (
+                    <span className="px-3 py-1 bg-red-100 text-red-700 text-xs rounded-full flex items-center gap-1 w-fit">
+                      Not Delivered
+                      <span className="h-2 w-2 bg-red-500 rounded-full" />
+                    </span>
                   ) : (
                     <span className="px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full flex items-center gap-1 w-fit">
                       Delivered
@@ -255,7 +218,7 @@ export default function AdoptRequestsPage() {
                 </td>
 
                 {/* ACTION MENU */}
-                <td className="py-4 px-6 relative">
+                <td className="py-4 px-6 relative" data-menu-root>
                   <button
                     onClick={() =>
                       setMenuOpen(menuOpen === item.id ? null : item.id)
@@ -266,10 +229,7 @@ export default function AdoptRequestsPage() {
                   </button>
 
                   {menuOpen === item.id && (
-                    <div
-                      ref={menuRef}
-                      className="absolute right-6 mt-2 w-40 bg-white shadow-lg rounded-xl border-0 z-20"
-                    >
+                    <div className="absolute right-6 mt-2 w-40 bg-white shadow-lg rounded-xl border-0 z-20">
                       <button
                         onClick={() =>
                           router.push(`/dashboard/adoption-requests/${item.id}`)
@@ -281,6 +241,7 @@ export default function AdoptRequestsPage() {
 
                       <button
                         className="w-full px-4 py-2 text-left hover:bg-gray-50 text-red-600"
+                        disabled={deleteStatus === "loading"}
                         onClick={() => {
                           setSelectedId(item.id);
                           setDeleteModal(true);
@@ -294,10 +255,24 @@ export default function AdoptRequestsPage() {
                         ACTION
                       </div>
 
-                      <button className="w-full px-4 py-2 text-left hover:bg-gray-50 text-gray-800">
+                      <button
+                        className="w-full px-4 py-2 text-left hover:bg-gray-50 text-gray-800"
+                        disabled={updateStatus === "loading"}
+                        onClick={async () => {
+                          setMenuOpen(null);
+                          await updateRequestStatus(item.id, "delivered");
+                        }}
+                      >
                         Delivered
                       </button>
-                      <button className="w-full px-4 py-2 text-left hover:bg-gray-50 text-gray-800">
+                      <button
+                        className="w-full px-4 py-2 text-left hover:bg-gray-50 text-gray-800"
+                        disabled={updateStatus === "loading"}
+                        onClick={async () => {
+                          setMenuOpen(null);
+                          await updateRequestStatus(item.id, "not_delivered");
+                        }}
+                      >
                         Not Delivered
                       </button>
                     </div>
@@ -314,6 +289,12 @@ export default function AdoptRequestsPage() {
       <p className="text-gray-600 text-sm mt-4">
         No of Results {filtered.length} out of {requests.length}
       </p>
+      {updateStatus === "failed" && updateError ? (
+        <p className="text-sm text-red-600 mt-2">{updateError}</p>
+      ) : null}
+      {deleteStatus === "failed" && deleteError ? (
+        <p className="text-sm text-red-600 mt-2">{deleteError}</p>
+      ) : null}
 
       {/* DELETE MODAL */}
       <ConfirmModal
