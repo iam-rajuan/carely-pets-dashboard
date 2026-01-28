@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { User, Trash2, ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { User, ChevronDown } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useAppSelector } from "../../../store/hooks";
 
 // ---- TAB LIST ----
 const tabs = ["Profile", "Pets", "Service"];
@@ -13,67 +14,134 @@ export default function PetOwnerDetails() {
   const { id } = useParams();
   const [activeTab, setActiveTab] = useState("Profile");
   const [openAccordion, setOpenAccordion] = useState<number | null>(null);
+  const accessToken = useAppSelector((state) => state.auth.tokens?.accessToken);
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const normalizedBaseUrl = baseUrl ? baseUrl.replace(/\/+$/, "") : "";
+  const [status, setStatus] = useState<"idle" | "loading" | "failed">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [pets, setPets] = useState<UserPet[]>([]);
+  const [services, setServices] = useState<UserService[]>([]);
 
-  // Dummy Data (replace with real API later)
-  const owner = {
-    name: "Steve Hard",
-    username: "@username",
-    email: "john@gmail.com",
-    phone: "985 659 5955",
-    address: "43, John hopkins road, NYC",
-    country: "USA",
-    joinDate: "Jan 25, 2024",
-    deletionLeft: "20 days left",
-    avatar:
-      "https://images.unsplash.com/photo-1502685104226-ee32379fefbe?q=80&w=800",
-    status: "Active",
-    reportCount: 15658,
-    reportOnPost: 4,
-  };
+  interface UserProfile {
+    id: string;
+    name: string;
+    username: string;
+    avatarUrl?: string | null;
+    coverUrl?: string | null;
+    status?: string | null;
+    reportCount?: number | null;
+    reportOnPostCount?: number | null;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    city?: string | null;
+    country?: string | null;
+    joiningDate?: string | null;
+    deletionRequestedAt?: string | null;
+    deletionDaysLeft?: number | null;
+  }
 
-  const pets = [
-    {
-      id: 1,
-      name: "Buddy",
-      gender: "Female",
-      type: "Persian Cat",
-      age: "2 years old",
-      img: "https://images.unsplash.com/photo-1592194996308-7b43878e84a6?w=800",
-    },
-    {
-      id: 2,
-      name: "Buddy",
-      gender: "Male",
-      type: "Persian Cat",
-      age: "2 years old",
-      img: "https://images.unsplash.com/photo-1568572933382-74d440642117?w=800",
-    },
-    {
-      id: 3,
-      name: "Buddy",
-      gender: "Female",
-      type: "Persian Cat",
-      age: "2 years old",
-      img: "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=800",
-    },
-  ];
+  interface UserPet {
+    id: string;
+    status?: string | null;
+    name: string;
+    age: number;
+    memoryStart?: string | null;
+    type: string;
+    gender?: string | null;
+    breed?: string | null;
+    trained?: boolean | null;
+    neutered?: boolean | null;
+    vaccinated?: boolean | null;
+    avatarUrl?: string | null;
+    photos?: string[] | null;
+  }
 
-  const services = [
-    {
-      id: 1,
-      service: "Grooming",
-      date: "Tuesday, Oct 25, 2026",
-      price: "$250.00",
-      status: "Processing",
-    },
-    {
-      id: 2,
-      service: "Grooming",
-      date: "Tuesday, Oct 25, 2026",
-      price: "$250.00",
-      status: "Completed",
-    },
-  ];
+  interface UserService {
+    id: number;
+    service: string;
+    date: string;
+    price: string;
+    status: string;
+  }
+
+  useEffect(() => {
+    if (!id) return;
+    if (!normalizedBaseUrl) {
+      setStatus("failed");
+      setError("NEXT_PUBLIC_API_BASE_URL is not set.");
+      return;
+    }
+    if (!accessToken) {
+      setStatus("failed");
+      setError("Missing access token.");
+      return;
+    }
+
+    const controller = new AbortController();
+    const fetchProfile = async () => {
+      setStatus("loading");
+      setError(null);
+      try {
+        const response = await fetch(
+          `${normalizedBaseUrl}/admin/users/${id}/profile`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+            signal: controller.signal,
+          },
+        );
+
+        if (!response.ok) {
+          let message = "Failed to load user profile.";
+          try {
+            const errorBody = await response.json();
+            message = errorBody?.message ?? message;
+          } catch {
+            try {
+              const errorText = await response.text();
+              if (errorText) message = errorText;
+            } catch {
+              // Keep fallback message.
+            }
+          }
+          throw new Error(message);
+        }
+
+        const body = await response.json();
+        setProfile(body?.data?.profile ?? null);
+        setPets(Array.isArray(body?.data?.pets) ? body.data.pets : []);
+        setServices(
+          Array.isArray(body?.data?.services) ? body.data.services : [],
+        );
+        setStatus("idle");
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setStatus("failed");
+        setError(
+          err instanceof Error ? err.message : "Failed to load user profile.",
+        );
+      }
+    };
+
+    fetchProfile();
+    return () => controller.abort();
+  }, [accessToken, id, normalizedBaseUrl]);
+
+  const displayJoinDate = useMemo(() => {
+    if (!profile?.joiningDate) return "N/A";
+    return new Date(profile.joiningDate).toLocaleDateString();
+  }, [profile?.joiningDate]);
+
+  const deletionLabel = useMemo(() => {
+    if (!profile?.deletionRequestedAt) return "N/A";
+    if (typeof profile?.deletionDaysLeft === "number") {
+      return `${profile.deletionDaysLeft} days left`;
+    }
+    return "Requested";
+  }, [profile?.deletionDaysLeft, profile?.deletionRequestedAt]);
 
   return (
     <div className="w-full space-y-10">
@@ -111,24 +179,48 @@ export default function PetOwnerDetails() {
       {/* ---- PROFILE TAB ---- */}
       {activeTab === "Profile" && (
         <div className="space-y-10">
+          {status === "loading" ? (
+            <div className="bg-white border rounded-xl p-6 text-gray-600">
+              Loading profile...
+            </div>
+          ) : status === "failed" ? (
+            <div className="bg-white border rounded-xl p-6 text-red-600">
+              {error ?? "Failed to load profile."}
+            </div>
+          ) : !profile ? (
+            <div className="bg-white border rounded-xl p-6 text-gray-600">
+              No profile data found.
+            </div>
+          ) : (
+            <>
           {/* USER HEADER */}
           <div className="flex items-center gap-6">
-            <Image
-              src={owner.avatar}
-              width={90}
-              height={90}
-              className="rounded-full object-cover"
-              alt="avatar"
-            />
+            {profile.avatarUrl ? (
+              <Image
+                src={profile.avatarUrl}
+                width={90}
+                height={90}
+                className="rounded-full object-cover"
+                alt="avatar"
+              />
+            ) : (
+              <div className="w-[90px] h-[90px] rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                <User className="h-8 w-8" />
+              </div>
+            )}
 
             <div>
               <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm flex items-center w-fit gap-2">
-                {owner.status}
+                {profile.status ?? "N/A"}
                 <span className="h-2 w-2 bg-green-600 rounded-full" />
               </span>
 
-              <h2 className="text-xl text-gray-800 mt-2">{owner.name}</h2>
-              <p className="text-gray-600">{owner.username}</p>
+              <h2 className="text-xl text-gray-800 mt-2">
+                {profile.name ?? "N/A"}
+              </h2>
+              <p className="text-gray-600">
+                {profile.username ? `@${profile.username}` : "N/A"}
+              </p>
             </div>
           </div>
 
@@ -141,7 +233,7 @@ export default function PetOwnerDetails() {
                   REPORT COUNT
                 </p>
                 <p className="text-2xl text-gray-800 font-bold mt-1">
-                  {owner.reportCount}
+                  {profile.reportCount ?? 0}
                 </p>
               </div>
               <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center">
@@ -156,7 +248,7 @@ export default function PetOwnerDetails() {
                   REPORT ON POST
                 </p>
                 <p className="text-2xl text-gray-800 font-bold mt-1">
-                  {owner.reportOnPost}
+                  {profile.reportOnPostCount ?? 0}
                 </p>
               </div>
               <div className="w-12 h-12 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center">
@@ -170,35 +262,35 @@ export default function PetOwnerDetails() {
             <div>
               <p className="text-xs text-gray-500">EMAIL</p>
               <p className="text-gray-800 font-medium border-b pb-2 mt-1">
-                {owner.email}
+                {profile.email ?? "N/A"}
               </p>
             </div>
 
             <div>
               <p className="text-xs text-gray-500">PHONE</p>
               <p className="text-gray-800 font-medium border-b pb-2 mt-1">
-                {owner.phone}
+                {profile.phone ?? "N/A"}
               </p>
             </div>
 
             <div>
               <p className="text-xs text-gray-500">ADDRESS</p>
               <p className="text-gray-800 font-medium border-b pb-2 mt-1">
-                {owner.address}
+                {profile.address ?? "N/A"}
               </p>
             </div>
 
             <div>
               <p className="text-xs text-gray-500">COUNTRY</p>
               <p className="text-gray-800 font-medium border-b pb-2 mt-1">
-                {owner.country}
+                {profile.country ?? "N/A"}
               </p>
             </div>
 
             <div>
               <p className="text-xs text-gray-500">JOINING DATE</p>
               <p className="text-gray-800 font-medium border-b pb-2 mt-1">
-                {owner.joinDate}
+                {displayJoinDate}
               </p>
             </div>
 
@@ -207,22 +299,47 @@ export default function PetOwnerDetails() {
                 DELETION (30 days timeline)
               </p>
               <p className="text-red-500 font-medium border-b pb-2 mt-1">
-                {owner.deletionLeft}
+                {deletionLabel}
               </p>
             </div>
           </div>
+            </>
+          )}
         </div>
       )}
 
       {/* ---- PETS TAB ---- */}
       {activeTab === "Pets" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-8">
-          {pets.map((p) => (
+          {status === "loading" ? (
+            <div className="bg-white border rounded-xl p-6 text-gray-600">
+              Loading pets...
+            </div>
+          ) : status === "failed" ? (
+            <div className="bg-white border rounded-xl p-6 text-red-600">
+              {error ?? "Failed to load pets."}
+            </div>
+          ) : pets.length === 0 ? (
+            <div className="bg-white border rounded-xl p-6 text-gray-600">
+              No pets found.
+            </div>
+          ) : (
+            pets.map((p) => (
             <div
               key={p.id}
               className="rounded-xl bg-white border shadow-sm overflow-hidden"
             >
-              <img src={p.img} className="w-full h-52 object-cover" alt="" />
+              {p.avatarUrl ? (
+                <img
+                  src={p.avatarUrl}
+                  className="w-full h-52 object-cover"
+                  alt={p.name}
+                />
+              ) : (
+                <div className="w-full h-52 bg-gray-100 flex items-center justify-center text-gray-400">
+                  <User className="h-8 w-8" />
+                </div>
+              )}
 
               <div className="p-4 space-y-2">
                 <div className="flex justify-between items-start">
@@ -232,17 +349,17 @@ export default function PetOwnerDetails() {
 
                   <span
                     className={`px-3 py-1 rounded-full text-xs ${
-                      p.gender === "Female"
+                      p.gender?.toLowerCase() === "female"
                         ? "bg-pink-100 text-pink-600"
                         : "bg-blue-100 text-blue-600"
                     }`}
                   >
-                    {p.gender}
+                    {p.gender ?? "N/A"}
                   </span>
                 </div>
 
                 <p className="text-sm text-gray-800">
-                  {p.type} • {p.age}
+                  {p.type} • {p.age} year{p.age === 1 ? "" : "s"}
                 </p>
 
                 <Link
@@ -253,7 +370,8 @@ export default function PetOwnerDetails() {
                 </Link>
               </div>
             </div>
-          ))}
+            ))
+          )}
         </div>
       )}
 
