@@ -52,7 +52,7 @@ export default function HealthRecordFormModal({
   const [temperature, setTemperature] = useState("");
   const [heartRate, setHeartRate] = useState("");
   const [respiratory, setRespiratory] = useState("");
-  const [status, setStatus] = useState("Normal");
+  const [status, setStatus] = useState("normal");
   const [attachments, setAttachments] = useState<File[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -251,9 +251,9 @@ export default function HealthRecordFormModal({
             value={status}
             onChange={(event) => setStatus(event.target.value)}
           >
-            <option>Normal</option>
-            <option>High</option>
-            <option>Low</option>
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+            <option value="low">Low</option>
           </select>
         </div>
 

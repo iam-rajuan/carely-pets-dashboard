@@ -18,6 +18,7 @@ import HealthRecordsModal, {
 import { useAppSelector } from "../../../../store/hooks";
 import RecordTypeModal from "../../add/RecordTypeModal";
 import type { HealthRecordFormValues } from "../../add/HealthRecordFormModal";
+import { log } from "console";
 
 type AttachmentType = "pdf" | "doc" | "image";
 
@@ -110,6 +111,11 @@ type AdoptionDetailResponse = {
   data: AdoptionDetail;
 };
 
+type HealthRecordsResponse = {
+  success: boolean;
+  data: HealthRecord[] | { records?: HealthRecord[] | null } | null;
+};
+
 const getAttachmentType = (nameOrUrl: string): AttachmentType => {
   const lower = nameOrUrl.toLowerCase();
   if (lower.endsWith(".pdf")) return "pdf";
@@ -122,6 +128,13 @@ const getFileName = (url: string) => {
   return parts[parts.length - 1] || "File";
 };
 
+const normalizeRecordType = (label: string) => {
+  const key = label.trim().toLowerCase();
+  if (key === "check-up" || key === "check up") return "checkup";
+  if (key === "tick & flea" || key === "tick and flea") return "tick_flea";
+  return key.replace(/\s+/g, "_");
+};
+
 export default function ViewPetPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -131,6 +144,11 @@ export default function ViewPetPage() {
   const [petData, setPetData] = useState<AdoptionDetail | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "failed">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [healthRecords, setHealthRecords] = useState<HealthRecord[]>([]);
+  const [recordsStatus, setRecordsStatus] = useState<
+    "idle" | "loading" | "failed"
+  >("idle");
+  const [recordsError, setRecordsError] = useState<string | null>(null);
   const [viewType, setViewType] = useState<string | null>(null);
   const [addRecordOpen, setAddRecordOpen] = useState(false);
   const [addRecordStatus, setAddRecordStatus] = useState<
@@ -200,14 +218,76 @@ export default function ViewPetPage() {
     }
   }, [accessToken, normalizedBaseUrl, params?.id]);
 
+  const fetchHealthRecords = useCallback(async () => {
+    const listingId = params?.id;
+    if (!listingId) return false;
+    if (!normalizedBaseUrl) {
+      setRecordsError("NEXT_PUBLIC_API_BASE_URL is not set.");
+      setRecordsStatus("failed");
+      return false;
+    }
+    if (!accessToken) {
+      setRecordsError("Missing access token.");
+      setRecordsStatus("failed");
+      return false;
+    }
+
+    setRecordsStatus("loading");
+    setRecordsError(null);
+    try {
+      const response = await fetch(
+        `${normalizedBaseUrl}/admin/adoptions/${listingId}/health-records`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        let message = "Failed to fetch health records.";
+        try {
+          const errorBody = await response.json();
+          message = errorBody?.message ?? message;
+        } catch {
+          try {
+            const errorText = await response.text();
+            if (errorText) message = errorText;
+          } catch {
+            // Keep fallback message.
+          }
+        }
+        throw new Error(message);
+      }
+
+      const payload = (await response.json()) as HealthRecordsResponse;
+      const records = Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.data?.records)
+          ? payload.data.records
+          : [];
+      setHealthRecords(records ?? []);
+      setRecordsStatus("idle");
+      return true;
+    } catch (err) {
+      setRecordsStatus("failed");
+      setRecordsError(
+        err instanceof Error ? err.message : "Failed to fetch health records.",
+      );
+      return false;
+    }
+  }, [accessToken, normalizedBaseUrl, params?.id]);
+
   useEffect(() => {
     if (!params?.id) return;
     fetchDetail();
-  }, [fetchDetail, params?.id]);
+    fetchHealthRecords();
+  }, [fetchDetail, fetchHealthRecords, params?.id]);
 
   const recordData = useMemo(() => {
-    if (!petData?.healthRecords?.length) return [];
-    return petData.healthRecords.map((record, index) => ({
+    if (!healthRecords.length) return [];
+    return healthRecords.map((record, index) => ({
       id: record.id || `${record.type}-${index}`,
       type: record.type || "Other",
       name: record.name || record.type || "Record",
@@ -238,7 +318,7 @@ export default function ViewPetPage() {
         },
       ),
     }));
-  }, [petData]);
+  }, [healthRecords]);
 
   const recordCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -289,7 +369,7 @@ export default function ViewPetPage() {
     setAddRecordOpen(false);
     try {
       const healthPayload = new FormData();
-      healthPayload.append("type", record.type);
+      healthPayload.append("type", normalizeRecordType(record.type));
       healthPayload.append(
         "recordDetails",
         JSON.stringify({
@@ -318,7 +398,7 @@ export default function ViewPetPage() {
           temperature: record.temperature,
           heartRate: record.heartRate,
           respiratory: record.respiratory,
-          status: record.status,
+          status: record.status.toLowerCase(),
         }),
       );
       healthPayload.append(
@@ -332,6 +412,8 @@ export default function ViewPetPage() {
         healthPayload.append("files", file);
       });
 
+      console.log(healthPayload);
+      
       const healthResponse = await fetch(
         `${normalizedBaseUrl}/admin/adoptions/${listingId}/health-records`,
         {
@@ -359,9 +441,21 @@ export default function ViewPetPage() {
         throw new Error(message);
       }
 
+      let responseBody: AdoptionDetailResponse | null = null;
+      try {
+        responseBody = (await healthResponse.json()) as AdoptionDetailResponse;
+      } catch {
+        responseBody = null;
+      }
+
+      if (responseBody?.data?.healthRecords) {
+        setHealthRecords(responseBody.data.healthRecords);
+      } else {
+        await fetchHealthRecords();
+      }
+
       setAddRecordStatus("idle");
       setAddRecordOpen(false);
-      await fetchDetail();
     } catch (err) {
       setAddRecordStatus("failed");
       setAddRecordError(
@@ -607,6 +701,11 @@ export default function ViewPetPage() {
         {addRecordError ? (
           <p className="text-xs text-red-500 mt-3" role="alert">
             {addRecordError}
+          </p>
+        ) : null}
+        {recordsStatus === "failed" && recordsError ? (
+          <p className="text-xs text-red-500 mt-2" role="alert">
+            {recordsError}
           </p>
         ) : null}
       </div>
