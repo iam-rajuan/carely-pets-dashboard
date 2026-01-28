@@ -31,12 +31,41 @@ interface RecordAttachment {
 }
 
 interface HealthRecord {
-  id: string;
-  type: string;
-  name: string;
-  updatedAt: string;
-  reminder: string;
-  attachments: Array<RecordAttachment | string>;
+  _id?: string;
+  type?: string | null;
+  recordDetails?: {
+    recordName?: string | null;
+    batchLotNo?: string | null;
+    otherInfo?: string | null;
+    cost?: string | null;
+    date?: string | null;
+    nextDueDate?: string | null;
+    reminder?: {
+      enabled?: boolean | null;
+      offset?: string | null;
+    } | null;
+  } | null;
+  veterinarian?: {
+    designation?: string | null;
+    name?: string | null;
+    clinicName?: string | null;
+    licenseNo?: string | null;
+    contact?: string | null;
+  } | null;
+  vitalSigns?: {
+    weight?: string | null;
+    temperature?: string | null;
+    heartRate?: string | null;
+    respiratory?: string | null;
+    status?: string | null;
+  } | null;
+  observation?: {
+    lookupObservations?: string[] | null;
+    clinicalNotes?: string | null;
+  } | null;
+  attachments?: Array<RecordAttachment | string>;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 const healthRecordTypes = [
@@ -133,6 +162,20 @@ const normalizeRecordType = (label: string) => {
   if (key === "check-up" || key === "check up") return "checkup";
   if (key === "tick & flea" || key === "tick and flea") return "tick_flea";
   return key.replace(/\s+/g, "_");
+};
+
+const labelForRecordType = (type?: string | null) => {
+  const key = (type ?? "").trim().toLowerCase();
+  if (key === "checkup" || key === "check-up" || key === "check up")
+    return "Check-up";
+  if (key === "tick_flea" || key === "tick & flea" || key === "tick and flea")
+    return "Tick & Flea";
+  if (key === "medication") return "Medication";
+  if (key === "surgery") return "Surgery";
+  if (key === "dental") return "Dental";
+  if (key === "vaccination") return "Vaccination";
+  if (key) return `${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+  return "Other";
 };
 
 export default function ViewPetPage() {
@@ -288,11 +331,18 @@ export default function ViewPetPage() {
   const recordData = useMemo(() => {
     if (!healthRecords.length) return [];
     return healthRecords.map((record, index) => ({
-      id: record.id || `${record.type}-${index}`,
-      type: record.type || "Other",
-      name: record.name || record.type || "Record",
-      updatedAt: record.updatedAt || "N/A",
-      reminder: record.reminder || "No reminder",
+      id: record._id || `${record.type ?? "record"}-${index}`,
+      type: labelForRecordType(record.type),
+      name: record.recordDetails?.recordName || "Record",
+      updatedAt:
+        record.updatedAt ||
+        record.recordDetails?.date ||
+        record.createdAt ||
+        "N/A",
+      reminder:
+        record.recordDetails?.nextDueDate ||
+        record.recordDetails?.reminder?.offset ||
+        "No reminder",
       attachments: (record.attachments ?? []).map(
         (attachment: RecordAttachment | string, attachmentIndex) => {
           if (typeof attachment === "string") {
@@ -412,7 +462,17 @@ export default function ViewPetPage() {
         healthPayload.append("files", file);
       });
 
-      console.log(healthPayload);
+      for (const [key, value] of healthPayload.entries()) {
+        if (value instanceof File) {
+          console.log(key, {
+            name: value.name,
+            type: value.type,
+            size: value.size,
+          });
+        } else {
+          console.log(key, value);
+        }
+      }
       
       const healthResponse = await fetch(
         `${normalizedBaseUrl}/admin/adoptions/${listingId}/health-records`,
