@@ -442,7 +442,7 @@ export default function AddPetForAdoption() {
                 <input
                   value={traitInput}
                   onChange={(event) => setTraitInput(event.target.value)}
-                  className="flex-1 bg-gray-50 border px-4 py-2 rounded-xl"
+                  className="flex-1 bg-gray-50 border border-gray-200 px-4 py-2 rounded-xl"
                   placeholder="Type trait and press add"
                 />
                 <button
@@ -472,7 +472,7 @@ export default function AddPetForAdoption() {
 
             <textarea
               placeholder="Write about your pet"
-              className="w-full bg-gray-50 border px-4 py-3 rounded-xl h-28 text-gray-800"
+              className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-xl h-28 text-gray-800"
               name="aboutPet"
             />
           </div>
@@ -558,7 +558,7 @@ export function InputField({
         <input
           name={name}
           placeholder={placeholder}
-          className="w-full bg-gray-50 border px-4 py-3 rounded-xl text-gray-800 mt-1"
+          className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-xl text-gray-800 mt-1"
         />
 
         {dropdown && (

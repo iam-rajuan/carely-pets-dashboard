@@ -36,7 +36,7 @@ export default function AddPetBreed() {
           <select
             value={selectedType}
             onChange={(e) => setSelectedType(e.target.value)}
-            className="w-full bg-gray-50 border rounded-xl px-4 py-3 text-gray-800 appearance-none"
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 appearance-none"
           >
             {petTypes.map((type) => (
               <option key={type}>{type}</option>
