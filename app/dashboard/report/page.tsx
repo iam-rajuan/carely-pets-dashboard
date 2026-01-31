@@ -153,7 +153,7 @@ export default function ReportPage() {
     [totalPages],
   );
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmAction = async () => {
     if (!selectedReport) return;
     if (!normalizedBaseUrl) {
       setDeleteError("NEXT_PUBLIC_API_BASE_URL is not set.");
@@ -170,19 +170,23 @@ export default function ReportPage() {
     setDeleteError(null);
 
     try {
-      const response = await fetch(
-        `${normalizedBaseUrl}/admin/reports/${selectedReport.id}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
+      const isRemove = selectedReport.type === "remove";
+      const endpoint = isRemove
+        ? `${normalizedBaseUrl}/admin/reports/${selectedReport.id}/remove-content`
+        : `${normalizedBaseUrl}/admin/reports/${selectedReport.id}`;
+      const method = isRemove ? "POST" : "DELETE";
+      const response = await fetch(endpoint, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
         },
-      );
+      });
 
       if (!response.ok) {
-        let message = "Failed to delete report.";
+        let message = isRemove
+          ? "Failed to remove content."
+          : "Failed to delete report.";
         try {
           const errorBody = await response.json();
           message = errorBody?.message ?? message;
@@ -197,15 +201,34 @@ export default function ReportPage() {
         throw new Error(message);
       }
 
-      setReports((prev) =>
-        prev.filter((report) => report.id !== selectedReport.id),
-      );
+      if (isRemove) {
+        let nextStatus: string | null = null;
+        try {
+          const body = await response.json();
+          nextStatus = body?.data?.status ?? null;
+        } catch {
+          // Keep existing status when response has no body.
+        }
+        setReports((prev) =>
+          prev.map((report) =>
+            report.id === selectedReport.id
+              ? { ...report, status: nextStatus ?? report.status }
+              : report,
+          ),
+        );
+      } else {
+        setReports((prev) =>
+          prev.filter((report) => report.id !== selectedReport.id),
+        );
+      }
       setDeleteStatus("idle");
       setModalOpen(false);
       setSelectedReport(null);
     } catch (err) {
       setDeleteStatus("failed");
-      setDeleteError(err instanceof Error ? err.message : "Failed to delete report.");
+      setDeleteError(
+        err instanceof Error ? err.message : "Failed to complete action.",
+      );
     }
   };
 
@@ -401,7 +424,7 @@ export default function ReportPage() {
             setModalOpen(false);
             setDeleteStatus("idle");
           }}
-          onConfirm={handleConfirmDelete}
+          onConfirm={handleConfirmAction}
           loading={deleteStatus === "loading"}
         />
       )}

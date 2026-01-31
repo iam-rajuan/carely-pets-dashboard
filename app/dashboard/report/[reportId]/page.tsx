@@ -134,6 +134,9 @@ export default function ReportDetailsPage() {
   const [status, setStatus] = useState<"idle" | "loading" | "failed">("idle");
   const [error, setError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteAction, setDeleteAction] = useState<"delete" | "remove">(
+    "delete",
+  );
   const [deleteStatus, setDeleteStatus] = useState<
     "idle" | "loading" | "failed"
   >("idle");
@@ -286,6 +289,76 @@ export default function ReportDetailsPage() {
     }
   };
 
+  const handleRemoveContent = async () => {
+    if (!reportId) return;
+    if (!normalizedBaseUrl) {
+      setDeleteError("NEXT_PUBLIC_API_BASE_URL is not set.");
+      setDeleteStatus("failed");
+      return;
+    }
+    if (!accessToken) {
+      setDeleteError("Missing access token.");
+      setDeleteStatus("failed");
+      return;
+    }
+
+    setDeleteStatus("loading");
+    setDeleteError(null);
+
+    try {
+      const response = await fetch(
+        `${normalizedBaseUrl}/admin/reports/${reportId}/remove-content`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        let message = "Failed to remove content.";
+        try {
+          const errorBody = await response.json();
+          message = errorBody?.message ?? message;
+        } catch {
+          try {
+            const errorText = await response.text();
+            if (errorText) message = errorText;
+          } catch {
+            // Keep fallback message.
+          }
+        }
+        throw new Error(message);
+      }
+
+      let nextStatus: string | null = null;
+      try {
+        const body = await response.json();
+        nextStatus = body?.data?.status ?? null;
+      } catch {
+        // Keep current status when response has no body.
+      }
+
+      setReport((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: nextStatus ?? prev.status,
+            }
+          : prev,
+      );
+      setDeleteStatus("idle");
+      setDeleteOpen(false);
+    } catch (err) {
+      setDeleteStatus("failed");
+      setDeleteError(
+        err instanceof Error ? err.message : "Failed to remove content.",
+      );
+    }
+  };
+
   const contentText = useMemo(() => {
     if (!report?.contentText) return "";
     return report.contentText;
@@ -323,6 +396,7 @@ export default function ReportDetailsPage() {
               <button
                 onClick={() => {
                   setDeleteError(null);
+                  setDeleteAction("delete");
                   setDeleteOpen(true);
                   setActionOpen(false);
                 }}
@@ -330,7 +404,15 @@ export default function ReportDetailsPage() {
               >
                 Delete Report
               </button>
-              <button className="px-4 py-2 text-sm text-left w-full hover:bg-gray-50 text-gray-700">
+              <button
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteAction("remove");
+                  setDeleteOpen(true);
+                  setActionOpen(false);
+                }}
+                className="px-4 py-2 text-sm text-left w-full hover:bg-gray-50 text-gray-700"
+              >
                 Remove Content
               </button>
               <button className="px-4 py-2 text-sm text-left w-full hover:bg-gray-50 text-gray-700">
@@ -424,13 +506,21 @@ export default function ReportDetailsPage() {
       {deleteOpen && (
         <ConfirmModal
           open={deleteOpen}
-          title="Delete Report?"
-          description="Deleting this report will permanently remove it from the database."
+          title={
+            deleteAction === "remove" ? "Remove Content?" : "Delete Report?"
+          }
+          description={
+            deleteAction === "remove"
+              ? "This will remove the reported content and update the report status."
+              : "Deleting this report will permanently remove it from the database."
+          }
           onClose={() => {
             setDeleteOpen(false);
             setDeleteStatus("idle");
           }}
-          onConfirm={handleDeleteReport}
+          onConfirm={
+            deleteAction === "remove" ? handleRemoveContent : handleDeleteReport
+          }
           loading={deleteStatus === "loading"}
         />
       )}
