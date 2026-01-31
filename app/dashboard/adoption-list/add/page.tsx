@@ -156,6 +156,7 @@ export default function AddPetForAdoption() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitError(null);
+    const form = event.currentTarget;
 
     if (snaps.length < 1 || snaps.length > 3) {
       setSubmitError("Pet snaps must be between 1 and 3 files.");
@@ -298,7 +299,7 @@ export default function AddPetForAdoption() {
       setSnaps([]);
       setTraits([]);
       setTraitInput("");
-      event.currentTarget.reset();
+      form?.reset();
       router.back();
       window.setTimeout(() => window.location.reload(), 100);
       return;

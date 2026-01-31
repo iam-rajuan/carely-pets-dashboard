@@ -12,12 +12,14 @@ export type AdoptionSummaryItem = {
 type AdoptionSummaryState = {
   items: AdoptionSummaryItem[];
   status: "idle" | "loading" | "succeeded" | "failed";
+  isRefreshing: boolean;
   error: string | null;
 };
 
 const initialState: AdoptionSummaryState = {
   items: [],
   status: "idle",
+  isRefreshing: false,
   error: null,
 };
 
@@ -83,15 +85,23 @@ const adoptionSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase(fetchAdoptionSummary.pending, (state) => {
+        state.error = null;
+        if (state.items.length > 0) {
+          state.isRefreshing = true;
+          state.status = "succeeded";
+          return;
+        }
         state.status = "loading";
         state.error = null;
       })
       .addCase(fetchAdoptionSummary.fulfilled, (state, action) => {
         state.status = "succeeded";
+        state.isRefreshing = false;
         state.items = action.payload;
       })
       .addCase(fetchAdoptionSummary.rejected, (state, action) => {
-        state.status = "failed";
+        state.isRefreshing = false;
+        state.status = state.items.length > 0 ? "succeeded" : "failed";
         state.error = action.payload ?? "Failed to fetch adoption summary.";
       });
   },

@@ -22,6 +22,7 @@ export default function AdoptionManagementPage() {
   const dispatch = useAppDispatch();
   const items = useAppSelector((state) => state.adoption.items);
   const status = useAppSelector((state) => state.adoption.status);
+  const isRefreshing = useAppSelector((state) => state.adoption.isRefreshing);
   const error = useAppSelector((state) => state.adoption.error);
   const accessToken = useAppSelector((state) => state.auth.tokens?.accessToken);
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -168,7 +169,7 @@ export default function AdoptionManagementPage() {
           </thead>
 
           <tbody>
-            {status === "loading" ? (
+            {status === "loading" && items.length === 0 ? (
               <tr className="border-t">
                 <td
                   colSpan={7}
@@ -177,7 +178,7 @@ export default function AdoptionManagementPage() {
                   Loading adoption list...
                 </td>
               </tr>
-            ) : status === "failed" ? (
+            ) : status === "failed" && items.length === 0 ? (
               <tr className="border-t">
                 <td
                   colSpan={7}
@@ -278,8 +279,16 @@ export default function AdoptionManagementPage() {
         No of Results {items.length} out of {items.length}
       </p>
 
+      {isRefreshing ? (
+        <p className="text-xs text-gray-500">Updating adoption list...</p>
+      ) : null}
+
       {deleteError ? (
         <p className="text-xs text-red-600">{deleteError}</p>
+      ) : null}
+
+      {!isRefreshing && error && items.length > 0 ? (
+        <p className="text-xs text-red-600">{error}</p>
       ) : null}
 
       {/* PAGINATION */}
