@@ -41,19 +41,19 @@ export default function ReportPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedReport, setSelectedReport] =
     useState<SelectedReportState | null>(null);
+  const [deleteStatus, setDeleteStatus] = useState<
+    "idle" | "loading" | "failed"
+  >("idle");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const accessToken = useAppSelector((state) => state.auth.tokens?.accessToken);
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   const normalizedBaseUrl = baseUrl ? baseUrl.replace(/\/+$/, "") : "";
 
   const handleDeleteClick = (type: ActionType, id: string) => {
+    setDeleteError(null);
     setSelectedReport({ type, id });
     setModalOpen(true);
-  };
-
-  const confirmDelete = () => {
-    console.log("Deleting:", selectedReport);
-    setModalOpen(false);
   };
 
   const modalTexts = {
@@ -152,6 +152,62 @@ export default function ReportPage() {
     () => Array.from({ length: totalPages }, (_, index) => index + 1),
     [totalPages],
   );
+
+  const handleConfirmDelete = async () => {
+    if (!selectedReport) return;
+    if (!normalizedBaseUrl) {
+      setDeleteError("NEXT_PUBLIC_API_BASE_URL is not set.");
+      setDeleteStatus("failed");
+      return;
+    }
+    if (!accessToken) {
+      setDeleteError("Missing access token.");
+      setDeleteStatus("failed");
+      return;
+    }
+
+    setDeleteStatus("loading");
+    setDeleteError(null);
+
+    try {
+      const response = await fetch(
+        `${normalizedBaseUrl}/admin/reports/${selectedReport.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        let message = "Failed to delete report.";
+        try {
+          const errorBody = await response.json();
+          message = errorBody?.message ?? message;
+        } catch {
+          try {
+            const errorText = await response.text();
+            if (errorText) message = errorText;
+          } catch {
+            // Keep fallback message.
+          }
+        }
+        throw new Error(message);
+      }
+
+      setReports((prev) =>
+        prev.filter((report) => report.id !== selectedReport.id),
+      );
+      setDeleteStatus("idle");
+      setModalOpen(false);
+      setSelectedReport(null);
+    } catch (err) {
+      setDeleteStatus("failed");
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete report.");
+    }
+  };
 
   return (
     <div className="space-y-8 w-full">
@@ -300,6 +356,10 @@ export default function ReportPage() {
         No of Results {filteredReports.length} out of {reports.length}
       </p>
 
+      {deleteError ? (
+        <p className="text-xs text-red-600">{deleteError}</p>
+      ) : null}
+
       {/* PAGINATION */}
       <div className="flex items-center gap-2">
         <button
@@ -337,8 +397,12 @@ export default function ReportPage() {
           open={modalOpen}
           title={modalTexts[selectedReport.type].title}
           description={modalTexts[selectedReport.type].desc}
-          onClose={() => setModalOpen(false)}
-          onConfirm={confirmDelete}
+          onClose={() => {
+            setModalOpen(false);
+            setDeleteStatus("idle");
+          }}
+          onConfirm={handleConfirmDelete}
+          loading={deleteStatus === "loading"}
         />
       )}
     </div>

@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useAppSelector } from "../../../store/hooks";
+import ConfirmModal from "../ConfirmModal";
 
 /* -----------------------------
       TYPES
@@ -86,9 +87,7 @@ function StatusBadge({ status }: StatusBadgeProps) {
     >
       {display}
       <span
-        className={`h-2 w-2 rounded-full ${
-          dot[normalized] ?? dot.pending
-        }`}
+        className={`h-2 w-2 rounded-full ${dot[normalized] ?? dot.pending}`}
       />
     </span>
   );
@@ -134,9 +133,15 @@ export default function ReportDetailsPage() {
   const [report, setReport] = useState<ReportData | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "failed">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteStatus, setDeleteStatus] = useState<
+    "idle" | "loading" | "failed"
+  >("idle");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const params = useParams<{ reportId: string }>();
   const reportId = params?.reportId;
+  const router = useRouter();
   const accessToken = useAppSelector((state) => state.auth.tokens?.accessToken);
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   const normalizedBaseUrl = baseUrl ? baseUrl.replace(/\/+$/, "") : "";
@@ -215,7 +220,9 @@ export default function ReportDetailsPage() {
         setStatus("idle");
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Failed to fetch report details.",
+          err instanceof Error
+            ? err.message
+            : "Failed to fetch report details.",
         );
         setStatus("failed");
       }
@@ -223,6 +230,61 @@ export default function ReportDetailsPage() {
 
     fetchReport();
   }, [accessToken, normalizedBaseUrl, reportId]);
+
+  const handleDeleteReport = async () => {
+    if (!reportId) return;
+    if (!normalizedBaseUrl) {
+      setDeleteError("NEXT_PUBLIC_API_BASE_URL is not set.");
+      setDeleteStatus("failed");
+      return;
+    }
+    if (!accessToken) {
+      setDeleteError("Missing access token.");
+      setDeleteStatus("failed");
+      return;
+    }
+
+    setDeleteStatus("loading");
+    setDeleteError(null);
+
+    try {
+      const response = await fetch(
+        `${normalizedBaseUrl}/admin/reports/${reportId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        let message = "Failed to delete report.";
+        try {
+          const errorBody = await response.json();
+          message = errorBody?.message ?? message;
+        } catch {
+          try {
+            const errorText = await response.text();
+            if (errorText) message = errorText;
+          } catch {
+            // Keep fallback message.
+          }
+        }
+        throw new Error(message);
+      }
+
+      setDeleteStatus("idle");
+      setDeleteOpen(false);
+      router.push("/dashboard/report");
+    } catch (err) {
+      setDeleteStatus("failed");
+      setDeleteError(
+        err instanceof Error ? err.message : "Failed to delete report.",
+      );
+    }
+  };
 
   const contentText = useMemo(() => {
     if (!report?.contentText) return "";
@@ -258,18 +320,25 @@ export default function ReportDetailsPage() {
 
           {actionOpen && (
             <div className="absolute right-0 mt-2 bg-white border rounded-xl shadow-md w-44 z-20">
-              {["Delete Report", "Remove Content", "Warn User", "Dismiss"].map(
-                (item) => (
-                  <button
-                    key={item}
-                    className={`px-4 py-2 text-sm text-left w-full hover:bg-gray-50 ${
-                      item === "Delete Report" ? "text-red-500" : ""
-                    }`}
-                  >
-                    {item}
-                  </button>
-                )
-              )}
+              <button
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteOpen(true);
+                  setActionOpen(false);
+                }}
+                className="px-4 py-2 text-sm text-left w-full hover:bg-gray-50 text-red-500"
+              >
+                Delete Report
+              </button>
+              <button className="px-4 py-2 text-sm text-left w-full hover:bg-gray-50 text-gray-700">
+                Remove Content
+              </button>
+              <button className="px-4 py-2 text-sm text-left w-full hover:bg-gray-50 text-gray-700">
+                Warn User
+              </button>
+              <button className="px-4 py-2 text-sm text-left w-full hover:bg-gray-50 text-gray-700">
+                Dismiss
+              </button>
             </div>
           )}
         </div>
@@ -292,7 +361,9 @@ export default function ReportDetailsPage() {
               value={report.id}
               iconBg="bg-[#F7E3FF]"
               icon={
-                <span className="text-lg font-semibold text-[#A855F7]">|||</span>
+                <span className="text-lg font-semibold text-[#A855F7]">
+                  |||
+                </span>
               }
             />
 
@@ -300,7 +371,9 @@ export default function ReportDetailsPage() {
               title="Report Count"
               value={report.count}
               iconBg="bg-[#FFE9D2]"
-              icon={<span className="text-lg font-semibold text-[#D97706]">Nº</span>}
+              icon={
+                <span className="text-lg font-semibold text-[#D97706]">Nº</span>
+              }
             />
 
             <div className="flex items-center">
@@ -343,6 +416,24 @@ export default function ReportDetailsPage() {
           </div>
         </>
       ) : null}
+
+      {deleteError ? (
+        <p className="text-xs text-red-600">{deleteError}</p>
+      ) : null}
+
+      {deleteOpen && (
+        <ConfirmModal
+          open={deleteOpen}
+          title="Delete Report?"
+          description="Deleting this report will permanently remove it from the database."
+          onClose={() => {
+            setDeleteOpen(false);
+            setDeleteStatus("idle");
+          }}
+          onConfirm={handleDeleteReport}
+          loading={deleteStatus === "loading"}
+        />
+      )}
     </div>
   );
 }
