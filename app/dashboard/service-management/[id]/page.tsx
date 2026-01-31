@@ -9,11 +9,12 @@ import {
   BriefcaseMedical,
 } from "lucide-react";
 import ConfirmModal from "../../report/ConfirmModal";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useAppSelector } from "../../../store/hooks";
 
 export default function ViewServicePage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const serviceRequestId = Array.isArray(params?.id)
     ? params.id[0]
     : params?.id;
@@ -188,6 +189,112 @@ export default function ViewServicePage() {
 
   const isCompleted = serviceStatus?.toLowerCase() === "completed";
 
+  const updateServiceStatus = async (
+    nextStatus: "pending" | "completed",
+  ) => {
+    if (!serviceRequestId) return;
+    if (!normalizedBaseUrl) {
+      setError("NEXT_PUBLIC_API_BASE_URL is not set.");
+      setStatus("failed");
+      return;
+    }
+    if (!accessToken) {
+      setError("Missing access token.");
+      setStatus("failed");
+      return;
+    }
+
+    const previousStatus = serviceStatus;
+    setServiceStatus(nextStatus);
+    setOpenMenu(false);
+
+    try {
+      const response = await fetch(
+        `${normalizedBaseUrl}/admin/services/${serviceRequestId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ status: nextStatus }),
+        },
+      );
+
+      if (!response.ok) {
+        let message = "Failed to update service status.";
+        try {
+          const errorBody = await response.json();
+          message = errorBody?.message ?? message;
+        } catch {
+          try {
+            const errorText = await response.text();
+            if (errorText) message = errorText;
+          } catch {
+            // Keep fallback message.
+          }
+        }
+        throw new Error(message);
+      }
+    } catch (err) {
+      setServiceStatus(previousStatus);
+      setError(
+        err instanceof Error ? err.message : "Failed to update service status.",
+      );
+      setStatus("failed");
+    }
+  };
+
+  const deleteService = async () => {
+    if (!serviceRequestId) return;
+    if (!normalizedBaseUrl) {
+      setError("NEXT_PUBLIC_API_BASE_URL is not set.");
+      setStatus("failed");
+      return;
+    }
+    if (!accessToken) {
+      setError("Missing access token.");
+      setStatus("failed");
+      return;
+    }
+
+    setDeleteOpen(false);
+
+    try {
+      const response = await fetch(
+        `${normalizedBaseUrl}/admin/services/${serviceRequestId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        let message = "Failed to delete service.";
+        try {
+          const errorBody = await response.json();
+          message = errorBody?.message ?? message;
+        } catch {
+          try {
+            const errorText = await response.text();
+            if (errorText) message = errorText;
+          } catch {
+            // Keep fallback message.
+          }
+        }
+        throw new Error(message);
+      }
+
+      router.push("/dashboard/service-management");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete service.");
+      setStatus("failed");
+    }
+  };
+
   return (
     <div className="p-6">
       {/* TITLE */}
@@ -233,20 +340,14 @@ export default function ViewServicePage() {
 
             <button
               className="w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100"
-              onClick={() => {
-                setServiceStatus("completed");
-                setOpenMenu(false);
-              }}
+              onClick={() => updateServiceStatus("completed")}
             >
               Completed
             </button>
 
             <button
               className="w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100"
-              onClick={() => {
-                setServiceStatus("pending");
-                setOpenMenu(false);
-              }}
+              onClick={() => updateServiceStatus("pending")}
             >
               Not Completed
             </button>
@@ -433,7 +534,7 @@ export default function ViewServicePage() {
       <ConfirmModal
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        onConfirm={() => {}}
+        onConfirm={deleteService}
       />
     </div>
   );

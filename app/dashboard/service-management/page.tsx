@@ -143,20 +143,119 @@ export default function ServiceManagementPage() {
   // Actions
   // ------------------------
 
-  const updateStatus = (id: string, nextStatus: "pending" | "completed") => {
+  const updateStatus = async (
+    id: string,
+    nextStatus: "pending" | "completed",
+  ) => {
+    if (!normalizedBaseUrl) {
+      setError("NEXT_PUBLIC_API_BASE_URL is not set.");
+      setStatus("failed");
+      return;
+    }
+    if (!accessToken) {
+      setError("Missing access token.");
+      setStatus("failed");
+      return;
+    }
+
+    const previous = data;
     setData((prev) =>
       prev.map((item) =>
         item.id === id ? { ...item, status: nextStatus } : item,
       ),
     );
     setOpenActionMenuId(null);
+
+    try {
+      const response = await fetch(
+        `${normalizedBaseUrl}/admin/services/${id}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ status: nextStatus }),
+        },
+      );
+
+      if (!response.ok) {
+        let message = "Failed to update service status.";
+        try {
+          const errorBody = await response.json();
+          message = errorBody?.message ?? message;
+        } catch {
+          try {
+            const errorText = await response.text();
+            if (errorText) message = errorText;
+          } catch {
+            // Keep fallback message.
+          }
+        }
+        throw new Error(message);
+      }
+    } catch (err) {
+      setData(previous);
+      setError(
+        err instanceof Error ? err.message : "Failed to update service status.",
+      );
+      setStatus("failed");
+    }
   };
 
-  const deleteEntry = () => {
+  const deleteEntry = async () => {
     if (deleteTarget === null) return;
-    setData((prev) => prev.filter((item) => item.id !== deleteTarget));
+    if (!normalizedBaseUrl) {
+      setError("NEXT_PUBLIC_API_BASE_URL is not set.");
+      setStatus("failed");
+      return;
+    }
+    if (!accessToken) {
+      setError("Missing access token.");
+      setStatus("failed");
+      return;
+    }
+
+    const targetId = deleteTarget;
+    const previous = data;
+    setData((prev) => prev.filter((item) => item.id !== targetId));
     setDeleteTarget(null);
     setOpenActionMenuId(null);
+
+    try {
+      const response = await fetch(
+        `${normalizedBaseUrl}/admin/services/${targetId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        let message = "Failed to delete service.";
+        try {
+          const errorBody = await response.json();
+          message = errorBody?.message ?? message;
+        } catch {
+          try {
+            const errorText = await response.text();
+            if (errorText) message = errorText;
+          } catch {
+            // Keep fallback message.
+          }
+        }
+        throw new Error(message);
+      }
+    } catch (err) {
+      setData(previous);
+      setError(
+        err instanceof Error ? err.message : "Failed to delete service.",
+      );
+      setStatus("failed");
+    }
   };
 
   return (
