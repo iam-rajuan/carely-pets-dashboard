@@ -125,7 +125,9 @@ export default function ReportPage() {
         setReports(items);
         setStatus("idle");
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to fetch reports.");
+        setError(
+          err instanceof Error ? err.message : "Failed to fetch reports.",
+        );
         setStatus("failed");
       }
     };
@@ -187,7 +189,7 @@ export default function ReportPage() {
           ? `${normalizedBaseUrl}/admin/reports/${selectedReport.id}/warn`
           : isDismiss
             ? `${normalizedBaseUrl}/admin/reports/${selectedReport.id}/dismiss`
-          : `${normalizedBaseUrl}/admin/reports/${selectedReport.id}`;
+            : `${normalizedBaseUrl}/admin/reports/${selectedReport.id}`;
       const method = isRemove || isWarn || isDismiss ? "POST" : "DELETE";
       const response = await fetch(endpoint, {
         method,

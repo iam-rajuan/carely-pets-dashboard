@@ -28,7 +28,8 @@ export default function ServiceManagementPage() {
 
   type StatusFilter = "All" | "Pending" | "Completed";
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("All");
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
+  const [openStatusMenu, setOpenStatusMenu] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const accessToken = useAppSelector((state) => state.auth.tokens?.accessToken);
@@ -117,21 +118,45 @@ export default function ServiceManagementPage() {
 
   const filteredData = useMemo(() => data, [data]);
 
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+
+      if (openStatusMenu && !target.closest('[data-menu-root="status"]')) {
+        setOpenStatusMenu(false);
+      }
+
+      if (
+        openActionMenuId &&
+        !target.closest('[data-menu-root="row-action"]')
+      ) {
+        setOpenActionMenuId(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [openActionMenuId, openStatusMenu]);
+
   // ------------------------
   // Actions
   // ------------------------
 
   const updateStatus = (id: string, nextStatus: "pending" | "completed") => {
     setData((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: nextStatus } : item)),
+      prev.map((item) =>
+        item.id === id ? { ...item, status: nextStatus } : item,
+      ),
     );
-    setOpenMenu(null);
+    setOpenActionMenuId(null);
   };
 
   const deleteEntry = () => {
     if (deleteTarget === null) return;
     setData((prev) => prev.filter((item) => item.id !== deleteTarget));
     setDeleteTarget(null);
+    setOpenActionMenuId(null);
   };
 
   return (
@@ -146,23 +171,23 @@ export default function ServiceManagementPage() {
 
       {/* STATUS FILTER */}
       <div className="flex justify-end mt-5">
-        <div className="relative">
+        <div className="relative" data-menu-root="status">
           <button
-            onClick={() => setOpenMenu(openMenu === -1 ? null : -1)}
-            className="flex items-center gap-2 border px-4 py-2 rounded-xl bg-white shadow-sm text-gray-800"
+            onClick={() => setOpenStatusMenu((prev) => !prev)}
+            className="flex items-center gap-2 border border-gray-200 px-4 py-2 rounded-xl bg-white shadow-sm text-gray-800"
           >
             Status
             <ChevronDown className="h-4 w-4 text-gray-500" />
           </button>
 
-          {openMenu === -1 && (
+          {openStatusMenu && (
             <div className="absolute right-0 mt-2 bg-white shadow-md rounded-xl w-40 border z-20">
               {["All", "Pending", "Completed"].map((status) => (
                 <button
                   key={status}
                   onClick={() => {
                     setSelectedStatus(status as StatusFilter);
-                    setOpenMenu(null);
+                    setOpenStatusMenu(false);
                   }}
                   className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
                 >
@@ -175,7 +200,7 @@ export default function ServiceManagementPage() {
       </div>
 
       {/* TABLE */}
-      <div className="mt-4 bg-white border rounded-xl shadow-sm overflow-hidden">
+      <div className="mt-4 bg-white border rounded-xl shadow-sm overflow-visible">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-700">
             <tr>
@@ -239,56 +264,61 @@ export default function ServiceManagementPage() {
                     </td>
 
                     {/* ACTION MENU */}
-                    <td className="p-4 relative">
-                      <button
-                        onClick={() =>
-                          setOpenMenu(openMenu === item.id ? null : item.id)
-                        }
-                      >
-                        <MoreHorizontal className="h-5 w-5 text-gray-700" />
-                      </button>
+                    <td className="p-4">
+                      <div className="relative" data-menu-root="row-action">
+                        <button
+                          onClick={() =>
+                            setOpenActionMenuId(
+                              openActionMenuId === item.id ? null : item.id,
+                            )
+                          }
+                        >
+                          <MoreHorizontal className="h-5 w-5 text-gray-700" />
+                        </button>
 
-                      {openMenu === item.id && (
-                        <div className="absolute right-0 mt-2 w-48 bg-white border shadow-lg rounded-xl z-20">
-                          <button
-                            onClick={() =>
-                              router.push(
-                                `/dashboard/service-management/${item.id}`,
-                              )
-                            }
-                            className="w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100"
-                          >
-                            View
-                          </button>
+                        {openActionMenuId === item.id && (
+                          <div className="absolute right-0 mt-2 w-48 bg-white border shadow-lg rounded-xl z-30">
+                            <button
+                              onClick={() => {
+                                setOpenActionMenuId(null);
+                                router.push(
+                                  `/dashboard/service-management/${item.id}`,
+                                );
+                              }}
+                              className="w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100"
+                            >
+                              View
+                            </button>
 
-                          <button
-                            onClick={() => setDeleteTarget(item.id)}
-                            className="w-full text-left px-4 py-2 text-red-600 hover:bg-gray-100"
-                          >
-                            Delete
-                          </button>
+                            <button
+                              onClick={() => setDeleteTarget(item.id)}
+                              className="w-full text-left px-4 py-2 text-red-600 hover:bg-gray-100"
+                            >
+                              Delete
+                            </button>
 
-                          <div className="border-t my-1"></div>
+                            <div className="border-t my-1"></div>
 
-                          <p className="px-4 pt-1 text-xs text-gray-500">
-                            ACTION
-                          </p>
+                            <p className="px-4 pt-1 text-xs text-gray-500">
+                              ACTION
+                            </p>
 
-                          <button
-                            onClick={() => updateStatus(item.id, "completed")}
-                            className="w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100"
-                          >
-                            Completed
-                          </button>
+                            <button
+                              onClick={() => updateStatus(item.id, "completed")}
+                              className="w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100"
+                            >
+                              Completed
+                            </button>
 
-                          <button
-                            onClick={() => updateStatus(item.id, "pending")}
-                            className="w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100"
-                          >
-                            Not Completed
-                          </button>
-                        </div>
-                      )}
+                            <button
+                              onClick={() => updateStatus(item.id, "pending")}
+                              className="w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100"
+                            >
+                              Not Completed
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
