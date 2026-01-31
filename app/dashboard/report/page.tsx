@@ -6,7 +6,7 @@ import ConfirmModal from "./ConfirmModal";
 import ActionMenu from "./ActionMenu";
 import { useAppSelector } from "../../store/hooks";
 
-type ActionType = "delete" | "remove";
+type ActionType = "delete" | "remove" | "warn";
 
 interface SelectedReportState {
   type: ActionType;
@@ -64,6 +64,10 @@ export default function ReportPage() {
     remove: {
       title: "Are you sure you want to remove this content?",
       desc: "The content will no longer be visible to users after removal.",
+    },
+    warn: {
+      title: "Warn this user?",
+      desc: "A warning will be sent to the user for this reported content.",
     },
   };
 
@@ -171,10 +175,13 @@ export default function ReportPage() {
 
     try {
       const isRemove = selectedReport.type === "remove";
+      const isWarn = selectedReport.type === "warn";
       const endpoint = isRemove
         ? `${normalizedBaseUrl}/admin/reports/${selectedReport.id}/remove-content`
-        : `${normalizedBaseUrl}/admin/reports/${selectedReport.id}`;
-      const method = isRemove ? "POST" : "DELETE";
+        : isWarn
+          ? `${normalizedBaseUrl}/admin/reports/${selectedReport.id}/warn`
+          : `${normalizedBaseUrl}/admin/reports/${selectedReport.id}`;
+      const method = isRemove || isWarn ? "POST" : "DELETE";
       const response = await fetch(endpoint, {
         method,
         headers: {
@@ -186,7 +193,9 @@ export default function ReportPage() {
       if (!response.ok) {
         let message = isRemove
           ? "Failed to remove content."
-          : "Failed to delete report.";
+          : isWarn
+            ? "Failed to warn user."
+            : "Failed to delete report.";
         try {
           const errorBody = await response.json();
           message = errorBody?.message ?? message;
@@ -201,7 +210,7 @@ export default function ReportPage() {
         throw new Error(message);
       }
 
-      if (isRemove) {
+      if (isRemove || isWarn) {
         let nextStatus: string | null = null;
         try {
           const body = await response.json();
