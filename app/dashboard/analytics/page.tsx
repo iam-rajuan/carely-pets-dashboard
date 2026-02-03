@@ -52,6 +52,16 @@ export default function DashboardPage() {
   const [userMetricYear, setUserMetricYear] = useState(
     String(today.getFullYear()),
   );
+  const [breakdown, setBreakdown] = useState<{
+    adoption: number;
+    service: number;
+    total: number;
+    currency: string;
+  } | null>(null);
+  const [breakdownStatus, setBreakdownStatus] = useState<
+    "idle" | "loading" | "failed"
+  >("idle");
+  const [breakdownError, setBreakdownError] = useState<string | null>(null);
   const [revenueTotal, setRevenueTotal] = useState<number[]>([]);
   const [revenueStatus, setRevenueStatus] = useState<
     "idle" | "loading" | "failed"
@@ -71,6 +81,78 @@ export default function DashboardPage() {
     const current = today.getFullYear();
     return Array.from({ length: 5 }, (_, index) => String(current - index));
   }, [today]);
+
+  useEffect(() => {
+    const fetchBreakdown = async () => {
+      const monthIndex = months.indexOf(selectedMonth);
+      if (monthIndex < 0) return;
+      if (!normalizedBaseUrl) {
+        setBreakdownError("NEXT_PUBLIC_API_BASE_URL is not set.");
+        setBreakdownStatus("failed");
+        return;
+      }
+      if (!accessToken) {
+        setBreakdownError("Missing access token.");
+        setBreakdownStatus("failed");
+        return;
+      }
+
+      setBreakdownStatus("loading");
+      setBreakdownError(null);
+
+      try {
+        const response = await fetch(
+          `${normalizedBaseUrl}/admin/dashboard/monthly-breakdown?month=${
+            monthIndex
+          }&year=${selectedYear}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+          },
+        );
+
+        if (!response.ok) {
+          let message = "Failed to fetch monthly breakdown.";
+          try {
+            const errorBody = await response.json();
+            message = errorBody?.message ?? message;
+          } catch {
+            try {
+              const errorText = await response.text();
+              if (errorText) message = errorText;
+            } catch {
+              // Keep fallback message.
+            }
+          }
+          throw new Error(message);
+        }
+
+        const body = await response.json();
+        const payload = body?.data;
+        if (!payload) throw new Error("Invalid monthly breakdown response.");
+
+        setBreakdown({
+          adoption: Number(payload?.adoption ?? 0),
+          service: Number(payload?.service ?? 0),
+          total: Number(payload?.total ?? 0),
+          currency: String(payload?.currency ?? "usd"),
+        });
+        setBreakdownStatus("idle");
+      } catch (err) {
+        setBreakdownError(
+          err instanceof Error
+            ? err.message
+            : "Failed to fetch monthly breakdown.",
+        );
+        setBreakdownStatus("failed");
+      }
+    };
+
+    fetchBreakdown();
+  }, [accessToken, normalizedBaseUrl, selectedMonth, selectedYear]);
 
   useEffect(() => {
     const fetchRevenue = async () => {
@@ -215,6 +297,21 @@ export default function DashboardPage() {
     [userMetrics],
   );
 
+  const formatMoney = (value: number, currency: string) => {
+    const safeValue = Number.isFinite(value) ? value : 0;
+    try {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: currency.toUpperCase(),
+        maximumFractionDigits: 2,
+      }).format(safeValue);
+    } catch {
+      return `$${safeValue.toFixed(2)}`;
+    }
+  };
+
+  const breakdownCurrency = breakdown?.currency ?? "usd";
+
   return (
     <div className="space-y-10 w-full">
       {/* HEADER */}
@@ -246,20 +343,37 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <SummaryCard
           title="ADOPTION"
-          value="$252.00"
+          value={
+            breakdownStatus === "loading"
+              ? "Loading..."
+              : formatMoney(breakdown?.adoption ?? 0, breakdownCurrency)
+          }
           icon={<Dog className="h-5 w-5 text-[#00A7C7]" />}
         />
         <SummaryCard
           title="SERVICE"
-          value="$252.00"
+          value={
+            breakdownStatus === "loading"
+              ? "Loading..."
+              : formatMoney(breakdown?.service ?? 0, breakdownCurrency)
+          }
           icon={<Heart className="h-5 w-5 text-[#00A7C7]" />}
         />
         <SummaryCard
           title="TOTAL"
-          value="$600.00"
+          value={
+            breakdownStatus === "loading"
+              ? "Loading..."
+              : formatMoney(breakdown?.total ?? 0, breakdownCurrency)
+          }
           icon={<Pencil className="h-5 w-5 text-[#00A7C7]" />}
         />
       </div>
+      {breakdownStatus === "failed" ? (
+        <p className="text-sm text-red-600">
+          {breakdownError ?? "Failed to load monthly breakdown."}
+        </p>
+      ) : null}
 
       {/* REVENUE METRIC */}
       <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-4">

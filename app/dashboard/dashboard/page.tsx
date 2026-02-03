@@ -95,7 +95,7 @@ export default function DashboardPage() {
       try {
         const response = await fetch(
           `${normalizedBaseUrl}/admin/dashboard/monthly-breakdown?month=${
-            monthIndex + 1
+            monthIndex
           }&year=${selectedYear}`,
           {
             method: "GET",
