@@ -1,8 +1,11 @@
 "use client";
 
+import type { FormEvent, KeyboardEvent } from "react";
 import { useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+
+export const dynamic = "force-dynamic";
 
 export default function OtpVerifyPage() {
   const router = useRouter();
@@ -30,16 +33,13 @@ export default function OtpVerifyPage() {
     }
   };
 
-  const handleKeyDown = (
-    index: number,
-    e: React.KeyboardEvent<HTMLInputElement>
-  ) => {
+  const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const code = otp.join("");
     if (code.length !== 4) return;

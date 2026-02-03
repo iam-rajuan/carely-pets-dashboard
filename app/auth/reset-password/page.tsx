@@ -1,8 +1,11 @@
 "use client";
 
+import type { FormEvent } from "react";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+
+export const dynamic = "force-dynamic";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -20,7 +23,7 @@ export default function ResetPasswordPage() {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   const normalizedBaseUrl = baseUrl ? baseUrl.replace(/\/+$/, "") : "";
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!normalizedBaseUrl) {
       setError("NEXT_PUBLIC_API_BASE_URL is not set.");
